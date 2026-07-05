@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>暑期排班系統</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,sans-serif;background:#F5F5F3;color:#1a1a18;font-size:14px;line-height:1.5}
+:root{
+  --s0:#F5F5F3;--s1:#EFEFEC;--s2:#FFFFFF;
+  --tp:#1a1a18;--ts:#5a5a57;--tm:#8a8a86;
+  --bd:#e0e0dc;--bds:#c8c8c4;
+  --acc:#2563EB;--acc-bg:#EFF6FF;--acc-t:#1D4ED8;
+  --ok:#16A34A;--ok-bg:#F0FDF4;--ok-t:#15803D;
+  --warn:#D97706;--warn-bg:#FFFBEB;--warn-t:#B45309;
+  --err:#DC2626;--err-bg:#FEF2F2;--err-t:#B91C1C;
+  --r:6px;
+}
+.shell{display:flex;height:100vh;overflow:hidden}
+
+/* NAV */
+.nav{width:220px;min-width:220px;background:var(--s2);border-right:1px solid var(--bd);display:flex;flex-direction:column}
+.nav-logo{padding:18px 20px 14px;border-bottom:1px solid var(--bd)}
+.nav-logo h1{font-size:14px;font-weight:600}
+.nav-logo p{font-size:11px;color:var(--tm);margin-top:2px}
+.nav-sec{padding:12px 8px 4px;font-size:10px;font-weight:600;color:var(--tm);text-transform:uppercase;letter-spacing:.06em}
+.ni{display:flex;align-items:center;gap:9px;padding:8px 12px;border-radius:var(--r);margin:1px 8px;cursor:pointer;color:var(--ts);font-size:13px;transition:all .12s;border:none;background:none;width:calc(100% - 16px);text-align:left}
+.ni:hover{background:var(--s1);color:var(--tp)}
+.ni.active{background:var(--acc-bg);color:var(--acc-t);font-weight:500}
+.ni svg{width:16px;height:16px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-footer{margin-top:auto;padding:12px 8px;border-top:1px solid var(--bd)}
+
+/* MAIN */
+.main{flex:1;overflow-y:auto;background:var(--s0)}
+.page{display:none;padding:28px 32px;max-width:960px}
+.page.active{display:block}
+.ph{margin-bottom:24px}
+.ph h2{font-size:20px;font-weight:600}
+.ph p{font-size:13px;color:var(--ts);margin-top:4px}
+
+/* CARDS */
+.card{background:var(--s2);border:1px solid var(--bd);border-radius:10px;margin-bottom:20px;overflow:hidden}
+.ch{padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ch h3{font-size:14px;font-weight:600}
+.ch p{font-size:12px;color:var(--tm);margin-top:2px}
+.cb{padding:18px}
+
+/* TABLE */
+.dt{width:100%;border-collapse:collapse}
+.dt th{text-align:left;font-size:11px;font-weight:600;color:var(--tm);text-transform:uppercase;letter-spacing:.05em;padding:8px 12px;border-bottom:1px solid var(--bd);background:var(--s1)}
+.dt td{padding:10px 12px;border-bottom:1px solid var(--bd);font-size:13px;vertical-align:middle}
+.dt tr:last-child td{border-bottom:none}
+.dt tr:hover td{background:var(--s0)}
+
+/* CHIPS / BADGES */
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;display:inline-block}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:var(--r);font-size:12px;font-weight:500}
+.badge-ok{background:var(--ok-bg);color:var(--ok-t)}
+.badge-warn{background:var(--warn-bg);color:var(--warn-t)}
+.badge-err{background:var(--err-bg);color:var(--err-t)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:var(--r);font-size:13px;cursor:pointer;border:1px solid var(--bds);background:var(--s2);color:var(--tp);font-weight:500;transition:all .12s;white-space:nowrap}
+.btn:hover{background:var(--s1)}
+.btn-primary{background:var(--acc);color:#fff;border-color:var(--acc)}
+.btn-primary:hover{opacity:.9}
+.btn-danger{background:var(--err-bg);color:var(--err-t);border-color:#fca5a5}
+.btn-danger:hover{background:#fee2e2}
+.btn-ghost{background:none;border-color:transparent;color:var(--ts)}
+.btn-ghost:hover{background:var(--s1)}
+.btn-sm{padding:4px 10px;font-size:12px}
+
+/* FORMS */
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;font-weight:500;color:var(--ts)}
+.field input,.field select,.field textarea{padding:7px 10px;border:1px solid var(--bds);border-radius:var(--r);font-size:13px;background:var(--s2);color:var(--tp);outline:none;transition:border-color .12s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(37,99,235,.08)}
+.field textarea{resize:vertical;min-height:60px}
+.field .hint{font-size:11px;color:var(--tm)}
+.fa{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--bd)}
+
+/* COLOR PICKER */
+.cr{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.cs{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .12s}
+.cs.sel{border-color:var(--tp);transform:scale(1.15)}
+
+/* SLOT TOGGLES (blocked) */
+.sg{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.st{padding:5px 4px;border:1px solid var(--bd);border-radius:var(--r);font-size:10px;text-align:center;cursor:pointer;color:var(--ts);background:var(--s1);transition:all .12s;line-height:1.3}
+.st:hover{border-color:var(--bds)}
+.st.blk{background:#fee2e2;color:var(--err-t);border-color:#fca5a5;font-weight:500}
+
+/* OVERLAY / MODAL */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:100;align-items:center;justify-content:center}
+.ov.open{display:flex}
+.modal{background:var(--s2);border:1px solid var(--bd);border-radius:12px;padding:24px;width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:18px}
+
+/* CARD TABS */
+.ctabs{display:flex;border-bottom:1px solid var(--bd);padding:0 18px}
+.ctab{padding:10px 14px;font-size:13px;color:var(--tm);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .12s}
+.ctab:hover{color:var(--tp)}
+.ctab.active{color:var(--acc-t);border-bottom-color:var(--acc);font-weight:500}
+.tp{display:none;padding:18px}
+.tp.active{display:block}
+
+/* STATS */
+.sc{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.scard{background:var(--s2);border:1px solid var(--bd);border-radius:10px;padding:14px 16px}
+.scard .num{font-size:28px;font-weight:600;line-height:1}
+.scard .lbl{font-size:12px;color:var(--tm);margin-top:4px}
+
+/* SHIFT PRESETS */
+.presets{display:flex;gap:8px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--bd);align-items:center;background:var(--s0)}
+.preset-btn{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:6px 12px;border:1px solid var(--bds);border-radius:var(--r);background:var(--s2);cursor:pointer;transition:all .12s}
+.preset-btn:hover{border-color:var(--acc);background:var(--acc-bg)}
+.preset-btn.applied{border-color:var(--acc);background:var(--acc-bg);color:var(--acc-t)}
+.preset-btn .pl{font-size:12px;font-weight:600}
+.preset-btn .ps{font-size:10px;color:var(--tm)}
+.preset-btn.applied .ps{color:var(--acc-t)}
+
+/* SLOT TABLE inline edit */
+.se{border:1px solid var(--bd);border-radius:4px;padding:3px 6px;font-size:12px;background:var(--s2);color:var(--tp);outline:none}
+.se:focus{border-color:var(--acc)}
+.se-type{font-weight:500}
+.drag-over{outline:2px dashed var(--acc);outline-offset:-2px}
+
+/* CAMP CONFIG */
+.wsr{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bd)}
+.wsr:last-child{border-bottom:none}
+.wsl{font-size:12px;font-weight:500;color:var(--ts);width:70px;flex-shrink:0}
+.wsi{flex:1}
+.wsi input{width:100%;padding:6px 10px;border:1px solid var(--bds);border-radius:var(--r);font-size:13px}
+.wsi input:focus{outline:none;border-color:var(--acc)}
+
+/* ALERT */
+.alert{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-radius:var(--r);font-size:12px;margin-bottom:14px}
+.alert-warn{background:var(--warn-bg);color:var(--warn-t);border:1px solid #fcd34d}
+.alert-ok{background:var(--ok-bg);color:var(--ok-t);border:1px solid #86efac}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:#1a1a18;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;z-index:999;opacity:0;transform:translateY(8px);transition:all .2s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+
+/* DIVIDER */
+.div-label{font-size:11px;font-weight:600;color:var(--tm);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--bd)}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ══ NAV ══ -->
+<nav class="nav">
+  <div class="nav-logo">
+    <h1>暑期排班系統</h1>
+    <p>8/3 ～ 8/28 Phase 1 設定</p>
+  </div>
+  <div class="nav-sec">設定模組</div>
+  <button class="ni active" id="ni-teachers" onclick="showPage('teachers')">
+    <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    教師管理
+  </button>
+  <button class="ni" id="ni-rooms" onclick="showPage('rooms')">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    教室管理
+  </button>
+  <button class="ni" id="ni-slots" onclick="showPage('slots')">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    時段模板
+  </button>
+  <div class="nav-sec">資料</div>
+  <button class="ni" onclick="exportData()">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    匯出設定
+  </button>
+  <button class="ni" onclick="document.getElementById('imp').click()">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    匯入設定
+  </button>
+  <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
+  <div class="nav-footer">
+    <div class="ni" style="cursor:default;font-size:11px;color:var(--tm)">
+      <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      資料存於本機瀏覽器
+    </div>
+  </div>
+</nav>
+
+<!-- ══ MAIN ══ -->
+<main class="main">
+
+<!-- ██ PAGE: 教師 ██ -->
+<div class="page active" id="page-teachers">
+  <div class="ph"><h2>教師管理</h2><p>新增、編輯或停用教師，設定年級、時數目標與不可排班時段</p></div>
+  <div class="sc" id="t-stats"></div>
+  <div class="card">
+    <div class="ch">
+      <div><h3>教師列表</h3><p>點「編輯」可調整時數目標與封鎖時段</p></div>
+      <button class="btn btn-primary" onclick="openTModal()">
+        <svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        新增教師
+      </button>
+    </div>
+    <table class="dt"><thead><tr>
+      <th>姓名</th><th>年級</th><th>週時數目標</th><th>工作班型</th><th>封鎖時段</th><th>狀態</th><th style="width:130px">操作</th>
+    </tr></thead><tbody id="t-body"></tbody></table>
+  </div>
+</div>
+
+<!-- ██ PAGE: 教室 ██ -->
+<div class="page" id="page-rooms">
+  <div class="ph"><h2>教室管理</h2><p>設定可用教室與容納人數，排班時提供下拉選擇與使用人數提示</p></div>
+  <div class="sc" id="r-stats"></div>
+  <div class="card">
+    <div class="ch">
+      <div><h3>教室列表</h3><p>同一時段可排入多位老師，系統顯示目前人數供評估</p></div>
+      <button class="btn btn-primary" onclick="openRModal()">
+        <svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        新增教室
+      </button>
+    </div>
+    <table class="dt"><thead><tr>
+      <th>教室</th><th>位置</th><th>容納人數</th><th>類型</th><th>備注</th><th style="width:100px">操作</th>
+    </tr></thead><tbody id="r-body"></tbody></table>
+  </div>
+</div>
+
+<!-- ██ PAGE: 時段 ██ -->
+<div class="page" id="page-slots">
+  <div class="ph"><h2>時段模板</h2><p>新增或刪除時段、修改時間與類型；套用班型後可再手動微調</p></div>
+
+  <div class="card">
+    <div class="ch">
+      <div><h3>工作班型快速套用</h3><p>選擇預設班型，時段列表會標示出該班型涵蓋的時段</p></div>
+    </div>
+    <!-- Preset buttons -->
+    <div class="presets" id="preset-bar"></div>
+    <!-- Slot table -->
+    <table class="dt">
+      <thead><tr>
+        <th style="width:24px"></th>
+        <th>開始</th><th>結束</th><th>時數</th><th>課程類型</th><th>備注</th><th style="width:130px">操作</th>
+      </tr></thead>
+      <tbody id="s-body"></tbody>
+    </table>
+    <div style="padding:12px 18px;border-top:1px solid var(--bd)">
+      <button class="btn" onclick="openSModal()">
+        <svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        新增時段
+      </button>
+      <button class="btn" onclick="resetSlots()" style="margin-left:8px">還原預設</button>
+    </div>
+  </div>
+
+  <!-- Camp config -->
+  <div class="card">
+    <div class="ch">
+      <div><h3>下午營隊設定（14:00～16:00）</h3><p>各週可獨立命名營隊分組，班表依週次帶入</p></div>
+      <button class="btn btn-primary" onclick="saveCamps()">儲存營隊設定</button>
+    </div>
+    <div class="ctabs" id="camp-tabs"></div>
+    <div id="camp-panels"></div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<!-- ══ MODAL: 教師 ══ -->
+<div class="ov" id="ov-t">
+<div class="modal">
+  <h2 id="t-modal-title">新增教師</h2>
+  <div class="fg">
+    <div class="field"><label>姓名 *</label><input id="t-name" placeholder="例：Freya"></div>
+    <div class="field"><label>年級 / 職稱</label>
+      <select id="t-grade">
+        <option>一年級</option><option>二年級</option><option>三年級</option>
+        <option>四年級</option><option>五年級</option><option>六年級</option>
+        <option>行政</option><option value="代課">代課（彈性人員）</option>
+      </select>
+    </div>
+    <div class="field"><label>週時數下限</label><input type="number" id="t-min" value="37" min="0" max="60" step="0.5"></div>
+    <div class="field"><label>週時數上限</label><input type="number" id="t-max" value="43" min="0" max="80" step="0.5"></div>
+  </div>
+
+  <div class="field" style="margin-top:14px">
+    <label>工作班型</label>
+    <select id="t-shift">
+      <option value="">未指定</option>
+      <option value="0">班型一：07:00–16:30（早班）</option>
+      <option value="1">班型二：08:00–16:30（一般早班）</option>
+      <option value="2">班型三：09:00–16:30（一般班）</option>
+      <option value="3">班型四：10:30–18:30（晚班）</option>
+    </select>
+    <span class="hint">選擇後排班介面會自動標示可排時段範圍</span>
+  </div>
+
+  <div class="field" style="margin-top:14px">
+    <label>標示顏色</label>
+    <div class="cr" id="t-colors"></div>
+  </div>
+
+  <div class="field" style="margin-top:14px">
+    <label>不可排班時段（點選封鎖）</label>
+    <span class="hint" style="margin-bottom:6px;display:block">點選後呈紅色；排班時該格會顯示警示</span>
+    <div class="sg" id="t-blocked"></div>
+  </div>
+
+  <div class="field" style="margin-top:14px">
+    <label>備注</label>
+    <textarea id="t-note" placeholder="例：代課老師、特殊安排..."></textarea>
+  </div>
+  <div class="fa">
+    <button class="btn" onclick="closeOv('ov-t')">取消</button>
+    <button class="btn btn-primary" onclick="saveTeacher()">儲存</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: 教室 ══ -->
+<div class="ov" id="ov-r">
+<div class="modal">
+  <h2 id="r-modal-title">新增教室</h2>
+  <div class="fg">
+    <div class="field"><label>教室名稱 *</label><input id="r-name" placeholder="例：1A、2廣、3廣"></div>
+    <div class="field"><label>樓層 / 位置</label><input id="r-loc" placeholder="例：1F、2F 廣場"></div>
+    <div class="field"><label>容納人數</label><input type="number" id="r-cap" value="30" min="1" max="500"></div>
+    <div class="field"><label>類型</label>
+      <select id="r-type">
+        <option>一般教室</option><option>廣場/大廳</option>
+        <option>專科教室</option><option>戶外</option><option>行政區</option>
+      </select>
+    </div>
+  </div>
+  <div class="field" style="margin-top:14px"><label>備注</label>
+    <textarea id="r-note" placeholder="例：需提前開冷氣、有投影設備..."></textarea>
+  </div>
+  <div class="fa">
+    <button class="btn" onclick="closeOv('ov-r')">取消</button>
+    <button class="btn btn-primary" onclick="saveRoom()">儲存</button>
+  </div>
+</div>
+</div>
+
+<!-- ══ MODAL: 時段 ══ -->
+<div class="ov" id="ov-s">
+<div class="modal">
+  <h2 id="s-modal-title">新增時段</h2>
+  <div class="fg">
+    <div class="field"><label>開始時間 *</label><input type="time" id="s-start" value="08:00"></div>
+    <div class="field"><label>結束時間 *</label><input type="time" id="s-end" value="08:30"></div>
+  </div>
+  <div class="field" style="margin-top:12px"><label>課程類型</label>
+    <select id="s-type">
+      <option>托育</option><option>正課</option><option>托育/正課</option>
+      <option>午間</option><option>營隊</option><option>其他</option>
+    </select>
+  </div>
+  <div class="field" style="margin-top:12px"><label>備注</label>
+    <input id="s-note" placeholder="例：依週次設定營隊分組">
+  </div>
+  <div class="fa">
+    <button class="btn" onclick="closeOv('ov-s')">取消</button>
+    <button class="btn btn-primary" onclick="saveSlot()">新增</button>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════
+const COLORS=['#F59E0B','#EF4444','#10B981','#3B82F6','#8B5CF6','#EC4899','#6B7280','#0EA5E9','#F97316','#14B8A6','#84CC16','#A855F7'];
+
+const TYPE_STYLE={
+  '托育':      {bg:'#FEF9C3',color:'#A16207'},
+  '正課':      {bg:'#EFF6FF',color:'#1D4ED8'},
+  '托育/正課': {bg:'#F0FDF4',color:'#15803D'},
+  '午間':      {bg:'#FCE7F3',color:'#9D174D'},
+  '營隊':      {bg:'#FDF4FF',color:'#7E22CE'},
+  '其他':      {bg:'#F5F5F3',color:'#555'},
+};
+const SLOT_TYPES=['托育','正課','托育/正課','午間','營隊','其他'];
+
+// Shift presets: [label, desc, startTime, endTime]
+const SHIFTS=[
+  {label:'07:00–16:30', desc:'早班',       start:'07:00', end:'16:30'},
+  {label:'08:00–16:30', desc:'一般早班',   start:'08:00', end:'16:30'},
+  {label:'09:00–16:30', desc:'一般班',     start:'09:00', end:'16:30'},
+  {label:'10:30–18:30', desc:'晚班',       start:'10:30', end:'18:30'},
+];
+
+const DEF_TEACHERS=[
+  {id:1,name:'Freya',   grade:'一年級',color:'#F59E0B',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:2,name:'Grace',   grade:'一年級',color:'#F59E0B',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:3,name:'Anne',    grade:'二年級',color:'#EF4444',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:4,name:'Brycen',  grade:'二年級',color:'#EF4444',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:5,name:'Susanna', grade:'三年級',color:'#10B981',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:6,name:'Peggy',   grade:'三年級',color:'#10B981',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:7,name:'Eliana',  grade:'四年級',color:'#3B82F6',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:8,name:'Michelle',grade:'四年級',color:'#3B82F6',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:9,name:'Ian',     grade:'五年級',color:'#8B5CF6',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:10,name:'Irene',  grade:'五年級',color:'#8B5CF6',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:11,name:'Ula',    grade:'六年級',color:'#EC4899',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:12,name:'Jacob',  grade:'六年級',color:'#EC4899',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+  {id:13,name:'Justin', grade:'行政',  color:'#6B7280',min:37,max:43,shift:'',blocked:[],note:'',active:true},
+];
+
+const DEF_ROOMS=[
+  {id:1, name:'1廣',  loc:'1F 廣場', cap:80, type:'廣場/大廳', note:''},
+  {id:2, name:'1A',   loc:'1F',      cap:35, type:'一般教室',  note:''},
+  {id:3, name:'2廣',  loc:'2F 廣場', cap:60, type:'廣場/大廳', note:''},
+  {id:4, name:'2A',   loc:'2F',      cap:30, type:'一般教室',  note:''},
+  {id:5, name:'2B',   loc:'2F',      cap:30, type:'一般教室',  note:''},
+  {id:6, name:'2C',   loc:'2F',      cap:30, type:'一般教室',  note:''},
+  {id:7, name:'2D',   loc:'2F',      cap:30, type:'一般教室',  note:''},
+  {id:8, name:'3廣',  loc:'3F 廣場', cap:60, type:'廣場/大廳', note:''},
+  {id:9, name:'3A',   loc:'3F',      cap:30, type:'一般教室',  note:''},
+  {id:10,name:'3B',   loc:'3F',      cap:30, type:'一般教室',  note:''},
+  {id:11,name:'3C',   loc:'3F',      cap:30, type:'一般教室',  note:''},
+  {id:12,name:'3D',   loc:'3F',      cap:30, type:'一般教室',  note:''},
+  {id:13,name:'3E',   loc:'3F',      cap:30, type:'一般教室',  note:''},
+  {id:14,name:'5B',   loc:'5F',      cap:25, type:'一般教室',  note:''},
+  {id:15,name:'5D',   loc:'5F',      cap:25, type:'一般教室',  note:''},
+  {id:16,name:'櫃檯', loc:'1F',      cap:5,  type:'行政區',    note:''},
+];
+
+const DEF_SLOTS=[
+  {id:1, start:'07:00',end:'07:30',type:'托育',      note:''},
+  {id:2, start:'07:30',end:'08:00',type:'托育',      note:''},
+  {id:3, start:'08:00',end:'08:30',type:'托育/正課', note:''},
+  {id:4, start:'08:30',end:'09:00',type:'正課',      note:''},
+  {id:5, start:'09:00',end:'10:30',type:'正課',      note:''},
+  {id:6, start:'10:30',end:'12:00',type:'正課',      note:''},
+  {id:7, start:'12:00',end:'14:00',type:'午間',      note:''},
+  {id:8, start:'14:00',end:'16:00',type:'營隊',      note:'依週次設定分組'},
+  {id:9, start:'16:00',end:'16:30',type:'正課',      note:''},
+  {id:10,start:'16:30',end:'17:00',type:'正課',      note:''},
+  {id:11,start:'17:00',end:'17:30',type:'托育',      note:''},
+  {id:12,start:'17:30',end:'18:00',type:'托育',      note:''},
+  {id:13,start:'18:00',end:'18:30',type:'托育',      note:''},
+];
+
+const DEF_CAMPS=[
+  {week:0,label:'第一週 8/3',  groups:['玩具製作營','基本課程','小一成長夏令營']},
+  {week:1,label:'第二週 8/10', groups:['玩具製作營','基本課程','小一成長夏令營']},
+  {week:2,label:'第三週 8/17', groups:['玩具製作營','基本課程','小一成長夏令營']},
+  {week:3,label:'第四週 8/24', groups:['玩具製作營','基本課程','小一成長夏令營']},
+];
+
+function load(key,def){return JSON.parse(localStorage.getItem(key)||'null')||JSON.parse(JSON.stringify(def));}
+let DB={
+  teachers: load('sch_t', DEF_TEACHERS),
+  rooms:    load('sch_r', DEF_ROOMS),
+  slots:    load('sch_s', DEF_SLOTS),
+  camps:    load('sch_c', DEF_CAMPS),
+  activeShift: parseInt(localStorage.getItem('sch_shift')||'-1'),
+};
+let tidSeq=Math.max(...DB.teachers.map(t=>t.id),0)+1;
+let ridSeq=Math.max(...DB.rooms.map(r=>r.id),0)+1;
+let sidSeq=Math.max(...DB.slots.map(s=>s.id),0)+1;
+
+function save(){
+  localStorage.setItem('sch_t', JSON.stringify(DB.teachers));
+  localStorage.setItem('sch_r', JSON.stringify(DB.rooms));
+  localStorage.setItem('sch_s', JSON.stringify(DB.slots));
+  localStorage.setItem('sch_c', JSON.stringify(DB.camps));
+  localStorage.setItem('sch_shift', DB.activeShift);
+}
+
+// ── helpers ──
+function calcHrs(s,e){
+  const [sh,sm]=s.split(':').map(Number), [eh,em]=e.split(':').map(Number);
+  return Math.round(((eh*60+em)-(sh*60+sm))/60*10)/10;
+}
+function timeToMin(t){const [h,m]=t.split(':').map(Number);return h*60+m;}
+function slotInShift(slot, shiftIdx){
+  if(shiftIdx<0||shiftIdx>=SHIFTS.length) return null;
+  const sh=SHIFTS[shiftIdx];
+  const ss=timeToMin(slot.start), se=timeToMin(slot.end);
+  const hs=timeToMin(sh.start),   he=timeToMin(sh.end);
+  return ss>=hs && se<=he;
+}
+
+// ══════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  document.getElementById('ni-'+id).classList.add('active');
+  if(id==='teachers') renderTeachers();
+  if(id==='rooms')    renderRooms();
+  if(id==='slots')    renderSlots();
+}
+
+// ══════════════════════════════════════════════
+// TEACHERS
+// ══════════════════════════════════════════════
+function renderTeachers(){
+  const active=DB.teachers.filter(t=>t.active).length;
+  const sub=DB.teachers.filter(t=>t.grade==='代課').length;
+  const shifts=DB.teachers.filter(t=>t.shift!=='').length;
+  document.getElementById('t-stats').innerHTML=
+    sc(DB.teachers.length,'教師總人數')+sc(active,'目前啟用')+sc(shifts,'已指定班型');
+
+  document.getElementById('t-body').innerHTML=DB.teachers.map(t=>{
+    const shiftLabel=t.shift!==''?SHIFTS[parseInt(t.shift)]?.label:'—';
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px">
+        <span class="dot" style="background:${t.color}"></span>
+        <span style="font-weight:500">${t.name}</span>
+      </div></td>
+      <td><span class="chip" style="background:${t.color}22;color:${t.color}">${t.grade}</span></td>
+      <td><span style="color:var(--ts)">${t.min}～${t.max} h/週</span></td>
+      <td>${t.shift!==''
+        ?`<span class="chip" style="background:var(--acc-bg);color:var(--acc-t)">班型${parseInt(t.shift)+1}：${shiftLabel}</span>`
+        :`<span style="color:var(--tm)">未指定</span>`}</td>
+      <td><span style="color:${t.blocked.length?'var(--warn-t)':'var(--tm)'}">
+        ${t.blocked.length?t.blocked.length+'個封鎖':'無限制'}
+      </span></td>
+      <td><span class="chip" style="background:${t.active?'var(--ok-bg)':'var(--s1)'};color:${t.active?'var(--ok-t)':'var(--tm)'}">
+        ${t.active?'啟用':'停用'}
+      </span></td>
+      <td><div style="display:flex;gap:4px">
+        <button class="btn btn-sm" onclick="openTModal(${t.id})">編輯</button>
+        <button class="btn btn-sm" onclick="toggleT(${t.id})">${t.active?'停用':'啟用'}</button>
+        <button class="btn btn-sm btn-danger" onclick="delT(${t.id})">刪除</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+let editTId=null, selColor=COLORS[0], blockedSel=[];
+
+function openTModal(id){
+  editTId=id||null;
+  const t=id?DB.teachers.find(x=>x.id===id):null;
+  document.getElementById('t-modal-title').textContent=id?'編輯教師':'新增教師';
+  document.getElementById('t-name').value=t?.name||'';
+  document.getElementById('t-grade').value=t?.grade||'一年級';
+  document.getElementById('t-min').value=t?.min??37;
+  document.getElementById('t-max').value=t?.max??43;
+  document.getElementById('t-shift').value=t?.shift??'';
+  document.getElementById('t-note').value=t?.note||'';
+  selColor=t?.color||COLORS[0];
+  blockedSel=[...(t?.blocked||[])];
+
+  document.getElementById('t-colors').innerHTML=COLORS.map(c=>
+    `<div class="cs${c===selColor?' sel':''}" style="background:${c}" onclick="pickColor('${c}',this)"></div>`
+  ).join('');
+
+  // Blocked slots grid using current DB slots
+  document.getElementById('t-blocked').innerHTML=DB.slots.map((s,i)=>{
+    const hrs=calcHrs(s.start,s.end);
+    const lbl=s.start+'～'+s.end;
+    return `<div class="st${blockedSel.includes(i)?' blk':''}" onclick="toggleBlk(${i},this)">${lbl}<br><span style="font-weight:400;font-size:9px">${hrs}h ${s.type}</span></div>`;
+  }).join('');
+
+  openOv('ov-t');
+  document.getElementById('t-name').focus();
+}
+function pickColor(c,el){selColor=c;document.querySelectorAll('.cs').forEach(s=>s.classList.remove('sel'));el.classList.add('sel');}
+function toggleBlk(i,el){
+  if(blockedSel.includes(i)){blockedSel=blockedSel.filter(x=>x!==i);el.classList.remove('blk');}
+  else{blockedSel.push(i);el.classList.add('blk');}
+}
+function saveTeacher(){
+  const name=document.getElementById('t-name').value.trim();
+  if(!name){toast('請填入教師姓名');return;}
+  const obj={
+    id:editTId||tidSeq++,name,
+    grade:document.getElementById('t-grade').value,
+    color:selColor,
+    min:parseFloat(document.getElementById('t-min').value),
+    max:parseFloat(document.getElementById('t-max').value),
+    shift:document.getElementById('t-shift').value,
+    blocked:[...blockedSel],
+    note:document.getElementById('t-note').value.trim(),
+    active:true,
+  };
+  if(editTId){const i=DB.teachers.findIndex(t=>t.id===editTId);if(i>-1)DB.teachers[i]=obj;}
+  else DB.teachers.push(obj);
+  save();closeOv('ov-t');renderTeachers();
+  toast(editTId?`已更新 ${name}`:`已新增 ${name}`);
+}
+function toggleT(id){const t=DB.teachers.find(x=>x.id===id);if(t){t.active=!t.active;save();renderTeachers();toast(`${t.name} 已${t.active?'啟用':'停用'}`)}}
+function delT(id){
+  const t=DB.teachers.find(x=>x.id===id);
+  if(!t||!confirm(`確定刪除「${t.name}」？`)) return;
+  DB.teachers=DB.teachers.filter(x=>x.id!==id);
+  save();renderTeachers();toast(`已刪除 ${t.name}`);
+}
+
+// ══════════════════════════════════════════════
+// ROOMS
+// ══════════════════════════════════════════════
+const TCOL={'廣場/大廳':'#3B82F6','一般教室':'#10B981','專科教室':'#8B5CF6','戶外':'#F59E0B','行政區':'#6B7280'};
+function renderRooms(){
+  const total=DB.rooms.length;
+  const cap=DB.rooms.reduce((s,r)=>s+r.cap,0);
+  const types=[...new Set(DB.rooms.map(r=>r.type))].length;
+  document.getElementById('r-stats').innerHTML=sc(total,'教室總數')+sc(cap,'總容納人數')+sc(types,'教室類型');
+
+  document.getElementById('r-body').innerHTML=DB.rooms.map(r=>`<tr>
+    <td style="font-weight:500">${r.name}</td>
+    <td style="color:var(--ts)">${r.loc}</td>
+    <td>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:60px;height:4px;background:var(--s1);border-radius:2px;overflow:hidden">
+          <div style="width:${Math.min(r.cap/100*100,100)}%;height:100%;background:${TCOL[r.type]||'#888'};border-radius:2px"></div>
+        </div>
+        ${r.cap} 人
+      </div>
+    </td>
+    <td><span class="chip" style="background:${TCOL[r.type]||'#888'}22;color:${TCOL[r.type]||'#555'}">${r.type}</span></td>
+    <td style="color:var(--tm);font-size:12px">${r.note||'—'}</td>
+    <td><div style="display:flex;gap:4px">
+      <button class="btn btn-sm" onclick="openRModal(${r.id})">編輯</button>
+      <button class="btn btn-sm btn-danger" onclick="delR(${r.id})">刪除</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+let editRId=null;
+function openRModal(id){
+  editRId=id||null;
+  const r=id?DB.rooms.find(x=>x.id===id):null;
+  document.getElementById('r-modal-title').textContent=id?'編輯教室':'新增教室';
+  document.getElementById('r-name').value=r?.name||'';
+  document.getElementById('r-loc').value=r?.loc||'';
+  document.getElementById('r-cap').value=r?.cap||30;
+  document.getElementById('r-type').value=r?.type||'一般教室';
+  document.getElementById('r-note').value=r?.note||'';
+  openOv('ov-r');document.getElementById('r-name').focus();
+}
+function saveRoom(){
+  const name=document.getElementById('r-name').value.trim();
+  if(!name){toast('請填入教室名稱');return;}
+  const obj={id:editRId||ridSeq++,name,loc:document.getElementById('r-loc').value.trim(),
+    cap:parseInt(document.getElementById('r-cap').value)||30,
+    type:document.getElementById('r-type').value,note:document.getElementById('r-note').value.trim()};
+  if(editRId){const i=DB.rooms.findIndex(r=>r.id===editRId);if(i>-1)DB.rooms[i]=obj;}
+  else DB.rooms.push(obj);
+  save();closeOv('ov-r');renderRooms();toast(editRId?`已更新 ${name}`:`已新增 ${name}`);
+}
+function delR(id){
+  const r=DB.rooms.find(x=>x.id===id);
+  if(!r||!confirm(`確定刪除教室「${r.name}」？`)) return;
+  DB.rooms=DB.rooms.filter(x=>x.id!==id);save();renderRooms();toast(`已刪除 ${r.name}`);
+}
+
+// ══════════════════════════════════════════════
+// SLOTS
+// ══════════════════════════════════════════════
+let dragSrc=null;
+
+function renderSlots(){
+  // Preset bar
+  document.getElementById('preset-bar').innerHTML=
+    `<span style="font-size:12px;font-weight:500;color:var(--tm);margin-right:4px">快速套用班型：</span>`+
+    SHIFTS.map((sh,i)=>`
+      <button class="preset-btn${DB.activeShift===i?' applied':''}" onclick="applyShift(${i})">
+        <span class="pl">${sh.label}</span>
+        <span class="ps">${sh.desc}${DB.activeShift===i?' ✓':''}</span>
+      </button>`).join('')+
+    (DB.activeShift>=0?`<button class="btn btn-sm btn-ghost" onclick="clearShift()">清除班型</button>`:'');
+
+  // Slot rows
+  document.getElementById('s-body').innerHTML=DB.slots.map((s,i)=>{
+    const hrs=calcHrs(s.start,s.end);
+    const ts=TYPE_STYLE[s.type]||TYPE_STYLE['其他'];
+    const inShift=DB.activeShift>=0?slotInShift(s,DB.activeShift):null;
+    const rowStyle=inShift===false?'opacity:.35':'';
+    const hlStyle=inShift===true?'background:var(--acc-bg)':'';
+    return `<tr draggable="true" style="${rowStyle}"
+        ondragstart="dragStart(${i})" ondragover="dragOver(event,${i})" ondrop="dragDrop(${i})" ondragend="dragEnd()">
+      <td style="cursor:grab;color:var(--tm);text-align:center;user-select:none">⠿</td>
+      <td style="${hlStyle}">
+        <input class="se" type="time" value="${s.start}"
+          onchange="updSlot(${s.id},'start',this.value)" style="width:90px">
+      </td>
+      <td style="${hlStyle}">
+        <input class="se" type="time" value="${s.end}"
+          onchange="updSlot(${s.id},'end',this.value)" style="width:90px">
+      </td>
+      <td style="font-weight:600;color:${hrs<=0?'var(--err-t)':'var(--tp)'}">
+        ${hrs>0?hrs+'h':'⚠️'}
+      </td>
+      <td>
+        <select class="se se-type" style="background:${ts.bg};color:${ts.color}"
+          onchange="updSlot(${s.id},'type',this.value)">
+          ${SLOT_TYPES.map(t=>`<option${t===s.type?' selected':''}>${t}</option>`).join('')}
+        </select>
+      </td>
+      <td>
+        <input class="se" type="text" value="${s.note||''}" placeholder="備注（選填）"
+          style="width:100%" onchange="updSlot(${s.id},'note',this.value)">
+      </td>
+      <td><div style="display:flex;gap:4px">
+        ${inShift===true?`<span class="badge badge-ok" style="font-size:10px">班型內</span>`:''}
+        ${inShift===false?`<span class="badge" style="font-size:10px;background:var(--s1);color:var(--tm)">班型外</span>`:''}
+        <button class="btn btn-sm btn-danger" onclick="delSlot(${s.id})">刪除</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+
+  renderCamps();
+}
+
+function applyShift(i){
+  DB.activeShift=i;save();renderSlots();
+  toast(`已套用班型：${SHIFTS[i].label}（${SHIFTS[i].desc}）`);
+}
+function clearShift(){DB.activeShift=-1;save();renderSlots();toast('已清除班型篩選');}
+
+function updSlot(id,key,val){
+  const s=DB.slots.find(x=>x.id===id);if(s){s[key]=val;save();renderSlots();}
+}
+function delSlot(id){
+  if(!confirm('確定刪除此時段？')) return;
+  DB.slots=DB.slots.filter(x=>x.id!==id);save();renderSlots();toast('已刪除時段');
+}
+function resetSlots(){
+  if(!confirm('還原為預設時段？目前設定將清除。')) return;
+  DB.slots=JSON.parse(JSON.stringify(DEF_SLOTS));sidSeq=14;save();renderSlots();toast('已還原預設時段');
+}
+
+let editSId=null;
+function openSModal(){
+  document.getElementById('s-modal-title').textContent='新增時段';
+  document.getElementById('s-start').value='08:00';
+  document.getElementById('s-end').value='08:30';
+  document.getElementById('s-type').value='正課';
+  document.getElementById('s-note').value='';
+  openOv('ov-s');
+}
+function saveSlot(){
+  const start=document.getElementById('s-start').value;
+  const end=document.getElementById('s-end').value;
+  if(!start||!end){toast('請填入時間');return;}
+  if(calcHrs(start,end)<=0){toast('結束時間必須晚於開始時間');return;}
+  const obj={id:sidSeq++,start,end,type:document.getElementById('s-type').value,note:document.getElementById('s-note').value.trim()};
+  // Insert in time order
+  DB.slots.push(obj);
+  DB.slots.sort((a,b)=>timeToMin(a.start)-timeToMin(b.start));
+  save();closeOv('ov-s');renderSlots();toast(`已新增 ${start}～${end}`);
+}
+
+// Drag-and-drop reorder
+function dragStart(i){dragSrc=i;}
+function dragOver(e,i){e.preventDefault();document.querySelectorAll('#s-body tr').forEach((r,ri)=>r.classList.toggle('drag-over',ri===i));}
+function dragDrop(i){
+  if(dragSrc===null||dragSrc===i) return;
+  const moved=DB.slots.splice(dragSrc,1)[0];
+  DB.slots.splice(i,0,moved);
+  dragSrc=null;save();renderSlots();
+}
+function dragEnd(){document.querySelectorAll('#s-body tr').forEach(r=>r.classList.remove('drag-over'));dragSrc=null;}
+
+// ── CAMPS ──
+function renderCamps(){
+  document.getElementById('camp-tabs').innerHTML=DB.camps.map((c,i)=>
+    `<div class="ctab${i===0?' active':''}" onclick="showCampTab(${i},this)">${c.label}</div>`
+  ).join('');
+  document.getElementById('camp-panels').innerHTML=DB.camps.map((c,wi)=>`
+    <div class="tp${wi===0?' active':''}" id="cp${wi}">
+      <div class="alert alert-warn" style="margin-bottom:12px">
+        <svg style="width:14px;height:14px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        ${c.label}的下午時段共 <b>${c.groups.length}</b> 個營隊分組
+      </div>
+      ${c.groups.map((g,gi)=>`
+        <div class="wsr">
+          <div class="wsl">分組 ${gi+1}</div>
+          <div class="wsi"><input type="text" value="${g}" placeholder="營隊名稱"
+            oninput="DB.camps[${wi}].groups[${gi}]=this.value"></div>
+          <button class="btn btn-sm btn-danger" style="margin-left:8px" onclick="rmCamp(${wi},${gi})">移除</button>
+        </div>`).join('')}
+      <button class="btn" style="margin-top:12px" onclick="addCamp(${wi})">＋ 新增分組</button>
+    </div>`).join('');
+}
+function showCampTab(i,el){
+  document.querySelectorAll('.ctab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tp').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('cp'+i).classList.add('active');
+}
+function addCamp(wi){DB.camps[wi].groups.push('新營隊');save();renderSlots();setTimeout(()=>{const tabs=document.querySelectorAll('.ctab');showCampTab(wi,tabs[wi]);},0);toast('已新增分組');}
+function rmCamp(wi,gi){
+  if(DB.camps[wi].groups.length<=1){toast('至少保留一個分組');return;}
+  DB.camps[wi].groups.splice(gi,1);save();renderSlots();setTimeout(()=>{const tabs=document.querySelectorAll('.ctab');showCampTab(wi,tabs[wi]);},0);toast('已移除分組');
+}
+function saveCamps(){save();toast('營隊設定已儲存');}
+
+// ══════════════════════════════════════════════
+// EXPORT / IMPORT
+// ══════════════════════════════════════════════
+function exportData(){
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='排班系統設定_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  toast('設定檔已下載');
+}
+function importData(e){
+  const f=e.target.files[0];if(!f) return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(d.teachers) DB.teachers=d.teachers;
+      if(d.rooms)    DB.rooms=d.rooms;
+      if(d.slots)    DB.slots=d.slots;
+      if(d.camps)    DB.camps=d.camps;
+      if(d.activeShift!==undefined) DB.activeShift=d.activeShift;
+      save();showPage('teachers');toast('設定已匯入');
+    }catch{alert('匯入失敗：格式不正確');}
+  };
+  rd.readAsText(f);e.target.value='';
+}
+
+// ══════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════
+function sc(num,label){return `<div class="scard"><div class="num">${num}</div><div class="lbl">${label}</div></div>`;}
+function openOv(id){document.getElementById(id).classList.add('open');}
+function closeOv(id){document.getElementById(id).classList.remove('open');}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2400);}
+
+document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o) o.classList.remove('open');}));
+
+// ── INIT ──
+renderTeachers();
+</script>
+</body>
+</html>
