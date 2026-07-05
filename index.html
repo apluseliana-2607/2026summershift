@@ -233,7 +233,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
       </button>
     </div>
     <table class="dt"><thead><tr>
-      <th>教室</th><th>位置</th><th>容納人數</th><th>類型</th><th>備注</th><th style="width:100px">操作</th>
+      <th>教室</th><th>位置</th><th>容納人數</th><th>類型</th><th>使用教師</th><th>備注</th><th style="width:100px">操作</th>
     </tr></thead><tbody id="r-body"></tbody></table>
   </div>
 </div>
@@ -709,7 +709,14 @@ function renderRooms(){
   const types=[...new Set(DB.rooms.map(r=>r.type))].length;
   document.getElementById('r-stats').innerHTML=sc(total,'教室總數')+sc(cap,'總容納人數')+sc(types,'教室類型');
 
-  document.getElementById('r-body').innerHTML=DB.rooms.map(r=>`<tr>
+  document.getElementById('r-body').innerHTML=DB.rooms.map(r=>{
+    const users=DB.teachers.filter(t=>t.active&&t.homeRoom===r.name);
+    const userCell = isPlazaName(r.name)
+      ? `<span style="color:var(--tm);font-size:12px">托育輪值共用</span>`
+      : (users.length
+          ? users.map(u=>`<span class="chip" style="background:${u.color}22;color:${u.color};margin:1px 3px 1px 0">${u.name}</span>`).join('')
+          : `<span style="color:var(--tm)">未指定</span>`);
+    return `<tr>
     <td style="font-weight:500">${r.name}</td>
     <td style="color:var(--ts)">${r.loc}</td>
     <td>
@@ -721,12 +728,14 @@ function renderRooms(){
       </div>
     </td>
     <td><span class="chip" style="background:${TCOL[r.type]||'#888'}22;color:${TCOL[r.type]||'#555'}">${r.type}</span></td>
+    <td>${userCell}</td>
     <td style="color:var(--tm);font-size:12px">${r.note||'—'}</td>
     <td><div style="display:flex;gap:4px">
       <button class="btn btn-sm" onclick="openRModal(${r.id})">編輯</button>
       <button class="btn btn-sm btn-danger" onclick="delR(${r.id})">刪除</button>
     </div></td>
-  </tr>`).join('');
+  </tr>`;
+  }).join('');
 }
 
 let editRId=null;
