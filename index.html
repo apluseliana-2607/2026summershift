@@ -293,6 +293,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
         <div class="ctabs" id="sc-daytabs" style="border-bottom:none"></div>
       </div>
     </div>
+    <div style="padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;background:var(--s0)">
+      <div class="field" style="min-width:150px">
+        <label>批次帶入教師</label>
+        <select id="sc-fill-teacher"></select>
+      </div>
+      <div class="field" style="min-width:120px">
+        <label>目標教室</label>
+        <select id="sc-fill-room"></select>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="bulkFillShift()">
+        <svg style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+        一鍵帶入該教師班型時段
+      </button>
+      <span class="hint" style="align-self:center">依教師「工作班型」自動填滿目前星期＋所選教室內涵蓋的時段</span>
+    </div>
     <div id="sc-alert" style="padding:0 18px"></div>
     <div style="overflow-x:auto;padding-bottom:4px">
       <table class="dt" id="sc-table" style="min-width:900px">
@@ -891,7 +906,7 @@ function importData(e){
 // ══════════════════════════════════════════════
 // SCHEDULE (排班編輯：教室 x 時段 週格狀班表)
 // ══════════════════════════════════════════════
-const DAYS=['週一','週二','週三','週四'];
+const DAYS=['週一','週二','週三','週四','週五'];
 let scDay=0;
 
 function renderScheduleInit(){
@@ -903,6 +918,20 @@ function renderScheduleInit(){
   document.getElementById('sc-daytabs').innerHTML=DAYS.map((d,i)=>
     `<div class="ctab${i===scDay?' active':''}" onclick="setScDay(${i},this)">${d}</div>`
   ).join('');
+
+  const fteach=document.getElementById('sc-fill-teacher');
+  const prevFT=fteach.value;
+  fteach.innerHTML=DB.teachers.filter(t=>t.active&&t.shift!=='').map(t=>
+    `<option value="${t.id}">${t.name}（班型${parseInt(t.shift)+1}：${SHIFTS[parseInt(t.shift)].label}）</option>`
+  ).join('');
+  if(prevFT && [...fteach.options].some(o=>o.value===prevFT)) fteach.value=prevFT;
+  if(!fteach.options.length) fteach.innerHTML='<option value="">尚無教師指定班型</option>';
+
+  const froom=document.getElementById('sc-fill-room');
+  const prevFR=froom.value;
+  froom.innerHTML=DB.rooms.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  if(prevFR && [...froom.options].some(o=>o.value===prevFR)) froom.value=prevFR;
+
   renderSchedule();
 }
 function setScDay(i,el){
@@ -957,7 +986,9 @@ function renderSchedule(){
       if(isConflict) bg='background:var(--err-bg)';
       else if(isBlocked) bg='background:var(--warn-bg)';
       else if(t) bg=`background:${t.color}1c`;
-      const options=`<option value="">－</option>`+activeTeachers.map(at=>
+      // Only offer teachers whose assigned shift covers this slot; teachers with no shift assigned remain available everywhere
+      const eligible=activeTeachers.filter(at=>at.shift===''||slotInShift(s,parseInt(at.shift)));
+      const options=`<option value="">－</option>`+eligible.map(at=>
         `<option value="${at.id}"${at.id===tId?' selected':''}>${at.name}</option>`).join('');
       return `<td style="padding:4px;${bg}">
         <select class="se" style="width:100%;min-width:84px" onchange="setAssign(${week},${day},${s.id},${r.id},this.value)">
@@ -969,6 +1000,31 @@ function renderSchedule(){
     }).join('');
     return `<tr><td style="font-weight:500;white-space:nowrap">${r.name}</td>${cells}</tr>`;
   }).join('');
+}
+
+function bulkFillShift(){
+  const week=parseInt(document.getElementById('sc-week').value);
+  const day=scDay;
+  const teacherId=parseInt(document.getElementById('sc-fill-teacher').value);
+  const roomId=parseInt(document.getElementById('sc-fill-room').value);
+  const t=DB.teachers.find(x=>x.id===teacherId);
+  if(!t){toast('請先選擇一位已指定班型的教師');return;}
+  const shiftIdx=parseInt(t.shift);
+  const room=DB.rooms.find(x=>x.id===roomId);
+
+  const targetSlots=DB.slots.filter(s=>slotInShift(s,shiftIdx));
+  if(!targetSlots.length){toast('該班型沒有涵蓋任何時段');return;}
+
+  let filled=0, skippedBlocked=0;
+  targetSlots.forEach(s=>{
+    const slotIdx=DB.slots.findIndex(x=>x.id===s.id);
+    if(t.blocked && t.blocked.includes(slotIdx)){skippedBlocked++;return;}
+    DB.schedule=DB.schedule.filter(x=>!(x.week===week&&x.day===day&&x.slotId===s.id&&x.roomId===roomId));
+    DB.schedule.push({week,day,slotId:s.id,roomId,teacherId});
+    filled++;
+  });
+  save();renderSchedule();
+  toast(`已為 ${t.name} 於 ${room.name} 帶入 ${filled} 個時段${skippedBlocked?`（略過 ${skippedBlocked} 個封鎖時段）`:''}`);
 }
 
 // ══════════════════════════════════════════════
