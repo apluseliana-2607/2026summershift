@@ -361,15 +361,40 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
   </div>
 
   <div class="field" style="margin-top:14px">
-    <label>工作班型</label>
-    <select id="t-shift">
-      <option value="">未指定</option>
-      <option value="0">班型一：07:00–16:30（早班）</option>
-      <option value="1">班型二：08:00–16:30（一般早班）</option>
-      <option value="2">班型三：09:00–16:30（一般班）</option>
-      <option value="3">班型四：10:30–18:30（晚班）</option>
-    </select>
-    <span class="hint">選擇後排班介面會自動標示可排時段範圍</span>
+    <label>工作班型（依星期分組設定）</label>
+    <div class="fg3" style="margin-top:4px">
+      <div class="field">
+        <label style="font-weight:400;color:var(--tm)">星期一、三</label>
+        <select id="t-shift-13">
+          <option value="">未指定</option>
+          <option value="0">班型一：07:00–16:30（早班）</option>
+          <option value="1">班型二：08:00–16:30（一般早班）</option>
+          <option value="2">班型三：09:00–16:30（一般班）</option>
+          <option value="3">班型四：10:30–18:30（晚班）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label style="font-weight:400;color:var(--tm)">星期二、四</label>
+        <select id="t-shift-24">
+          <option value="">未指定</option>
+          <option value="0">班型一：07:00–16:30（早班）</option>
+          <option value="1">班型二：08:00–16:30（一般早班）</option>
+          <option value="2">班型三：09:00–16:30（一般班）</option>
+          <option value="3">班型四：10:30–18:30（晚班）</option>
+        </select>
+      </div>
+      <div class="field">
+        <label style="font-weight:400;color:var(--tm)">星期五</label>
+        <select id="t-shift-5">
+          <option value="">未指定</option>
+          <option value="0">班型一：07:00–16:30（早班）</option>
+          <option value="1">班型二：08:00–16:30（一般早班）</option>
+          <option value="2">班型三：09:00–16:30（一般班）</option>
+          <option value="3">班型四：10:30–18:30（晚班）</option>
+        </select>
+      </div>
+    </div>
+    <span class="hint">可依星期分組設定不同班型；排班編輯頁面會依當天所屬分組自動套用對應時段</span>
   </div>
 
   <div class="field" style="margin-top:14px">
@@ -554,8 +579,23 @@ const HOMEROOM_MAP={'Freya':'3A','Grace':'3B','Anne':'3D','Brycen':'3E','Susanna
 let migrated=false;
 DB.teachers.forEach(t=>{
   if(t.homeRoom===undefined){ t.homeRoom=HOMEROOM_MAP[t.name]||''; migrated=true; }
+  if(t.shiftG===undefined){
+    const legacy=t.shift!==undefined?t.shift:'';
+    t.shiftG={'13':legacy,'24':legacy,'5':legacy};
+    migrated=true;
+  }
 });
 if(migrated) save();
+
+// Day-group helpers: day index 0=Mon,1=Tue,2=Wed,3=Thu,4=Fri
+function dayGroupKey(day){
+  if(day===0||day===2) return '13';
+  if(day===1||day===3) return '24';
+  return '5';
+}
+function shiftForDay(t,day){
+  return t.shiftG ? (t.shiftG[dayGroupKey(day)]||'') : '';
+}
 
 function save(){
   localStorage.setItem('sch_t', JSON.stringify(DB.teachers));
@@ -601,12 +641,20 @@ function showPage(id){
 function renderTeachers(){
   const active=DB.teachers.filter(t=>t.active).length;
   const sub=DB.teachers.filter(t=>t.grade==='代課').length;
-  const shifts=DB.teachers.filter(t=>t.shift!=='').length;
+  const shifts=DB.teachers.filter(t=>t.shiftG&&(t.shiftG['13']||t.shiftG['24']||t.shiftG['5'])).length;
   document.getElementById('t-stats').innerHTML=
     sc(DB.teachers.length,'教師總人數')+sc(active,'目前啟用')+sc(shifts,'已指定班型');
 
   document.getElementById('t-body').innerHTML=DB.teachers.map(t=>{
-    const shiftLabel=t.shift!==''?SHIFTS[parseInt(t.shift)]?.label:'—';
+    const g=t.shiftG||{'13':'','24':'','5':''};
+    const grpLabel=(v)=>v!==''?SHIFTS[parseInt(v)]?.label:'—';
+    const shiftCell = (g['13']||g['24']||g['5'])
+      ? `<div style="font-size:11px;line-height:1.6">
+           <div>一三：${grpLabel(g['13'])}</div>
+           <div>二四：${grpLabel(g['24'])}</div>
+           <div>週五：${grpLabel(g['5'])}</div>
+         </div>`
+      : `<span style="color:var(--tm)">未指定</span>`;
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:8px">
         <span class="dot" style="background:${t.color}"></span>
@@ -614,9 +662,7 @@ function renderTeachers(){
       </div></td>
       <td><span class="chip" style="background:${t.color}22;color:${t.color}">${t.grade}</span></td>
       <td><span style="color:var(--ts)">${t.min}～${t.max} h/週</span></td>
-      <td>${t.shift!==''
-        ?`<span class="chip" style="background:var(--acc-bg);color:var(--acc-t)">班型${parseInt(t.shift)+1}：${shiftLabel}</span>`
-        :`<span style="color:var(--tm)">未指定</span>`}</td>
+      <td>${shiftCell}</td>
       <td>${t.homeRoom?`<span class="chip" style="background:var(--ok-bg);color:var(--ok-t)">${t.homeRoom}</span>`:`<span style="color:var(--tm)">彈性</span>`}</td>
       <td><span style="color:${t.blocked.length?'var(--warn-t)':'var(--tm)'}">
         ${t.blocked.length?t.blocked.length+'個封鎖':'無限制'}
@@ -643,7 +689,9 @@ function openTModal(id){
   document.getElementById('t-grade').value=t?.grade||'一年級';
   document.getElementById('t-min').value=t?.min??37;
   document.getElementById('t-max').value=t?.max??43;
-  document.getElementById('t-shift').value=t?.shift??'';
+  document.getElementById('t-shift-13').value=t?.shiftG?.['13']??'';
+  document.getElementById('t-shift-24').value=t?.shiftG?.['24']??'';
+  document.getElementById('t-shift-5').value=t?.shiftG?.['5']??'';
   document.getElementById('t-note').value=t?.note||'';
   const hrsel=document.getElementById('t-homeroom');
   hrsel.innerHTML='<option value="">未指定（代課／彈性人員，排班時教室不受限制）</option>'+
@@ -680,7 +728,11 @@ function saveTeacher(){
     color:selColor,
     min:parseFloat(document.getElementById('t-min').value),
     max:parseFloat(document.getElementById('t-max').value),
-    shift:document.getElementById('t-shift').value,
+    shiftG:{
+      '13':document.getElementById('t-shift-13').value,
+      '24':document.getElementById('t-shift-24').value,
+      '5':document.getElementById('t-shift-5').value,
+    },
     homeRoom:document.getElementById('t-homeroom').value,
     blocked:[...blockedSel],
     note:document.getElementById('t-note').value.trim(),
@@ -971,25 +1023,30 @@ function renderScheduleInit(){
     `<div class="ctab${i===scDay?' active':''}" onclick="setScDay(${i},this)">${d}</div>`
   ).join('');
 
+  updateFillControls();
+  renderSchedule();
+}
+function updateFillControls(){
   const fteach=document.getElementById('sc-fill-teacher');
   const prevFT=fteach.value;
-  fteach.innerHTML=DB.teachers.filter(t=>t.active&&t.shift!=='').map(t=>
-    `<option value="${t.id}">${t.name}（${SHIFTS[parseInt(t.shift)].label}／${t.homeRoom?'固定教室 '+t.homeRoom:'彈性教室'}）</option>`
-  ).join('');
+  const dayTeachers=DB.teachers.filter(t=>t.active&&shiftForDay(t,scDay)!=='');
+  fteach.innerHTML=dayTeachers.map(t=>{
+    const sh=shiftForDay(t,scDay);
+    return `<option value="${t.id}">${t.name}（${SHIFTS[parseInt(sh)].label}／${t.homeRoom?'固定教室 '+t.homeRoom:'彈性教室'}）</option>`;
+  }).join('');
   if(prevFT && [...fteach.options].some(o=>o.value===prevFT)) fteach.value=prevFT;
-  if(!fteach.options.length) fteach.innerHTML='<option value="">尚無教師指定班型</option>';
+  if(!fteach.options.length) fteach.innerHTML=`<option value="">${DAYS[scDay]}尚無教師指定班型</option>`;
 
   const froom=document.getElementById('sc-fill-room');
   const prevFR=froom.value;
   froom.innerHTML=DB.rooms.filter(r=>!isPlazaName(r.name)).map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
   if(prevFR && [...froom.options].some(o=>o.value===prevFR)) froom.value=prevFR;
-
-  renderSchedule();
 }
 function setScDay(i,el){
   scDay=i;
   document.querySelectorAll('#sc-daytabs .ctab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
+  updateFillControls();
   renderSchedule();
 }
 function getAssign(week,day,slotId,roomId){
@@ -1043,7 +1100,10 @@ function renderSchedule(){
       else if(isBlocked) bg='background:var(--warn-bg)';
       else if(t) bg=`background:${t.color}1c`;
       // Only offer teachers whose shift covers this slot AND whose homeroom/plaza rules match this room
-      let eligible=activeTeachers.filter(at=>(at.shift===''||slotInShift(s,parseInt(at.shift))) && roomEligible(at,r,s));
+      let eligible=activeTeachers.filter(at=>{
+        const sh=shiftForDay(at,day);
+        return (sh===''||slotInShift(s,parseInt(sh))) && roomEligible(at,r,s);
+      });
       // Keep the currently assigned teacher selectable even if rules no longer match, so data isn't silently lost
       if(t && !eligible.some(e=>e.id===t.id)) eligible=[...eligible,t];
       const options=`<option value="">－</option>`+eligible.map(at=>
@@ -1066,8 +1126,9 @@ function bulkFillShift(){
   const teacherId=parseInt(document.getElementById('sc-fill-teacher').value);
   const fallbackRoomId=parseInt(document.getElementById('sc-fill-room').value);
   const t=DB.teachers.find(x=>x.id===teacherId);
-  if(!t||t.shift===''){toast('請先選擇一位已指定班型的教師');return;}
-  const shiftIdx=parseInt(t.shift);
+  const sh=t?shiftForDay(t,day):'';
+  if(!t||sh===''){toast(`請先選擇一位在${DAYS[day]}已指定班型的教師`);return;}
+  const shiftIdx=parseInt(sh);
   const targetSlots=DB.slots.filter(s=>slotInShift(s,shiftIdx));
   if(!targetSlots.length){toast('該班型沒有涵蓋任何時段');return;}
 
