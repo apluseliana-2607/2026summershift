@@ -344,7 +344,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
         <svg style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
         一鍵帶入該教師班型時段
       </button>
-      <span class="hint" style="align-self:center">有固定教室的老師會自動排入自己的教室；托育時段自動排入對應樓層廣場；彈性教師（無固定教室）才會用「備援教室」</span>
+      <button class="btn btn-danger btn-sm" onclick="bulkClearShift()">
+        <svg style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        一鍵清除已帶入班型時段
+      </button>
+      <span class="hint" style="align-self:center">有固定教室的老師會自動排入自己的教室；托育時段自動排入對應樓層廣場；彈性教師（無固定教室）才會用「備援教室」；清除只會影響「批次帶入教師」目前選取的老師在當天的排班</span>
     </div>
     <div id="sc-alert" style="padding:0 18px"></div>
     <div style="overflow-x:auto;padding-bottom:4px">
@@ -658,6 +662,8 @@ let sidSeq=Math.max(...DB.slots.map(s=>s.id),0)+1;
 // Migration: backfill homeRoom for teachers saved before this field existed
 const HOMEROOM_MAP={'Freya':'3A','Grace':'3B','Anne':'3D','Brycen':'3E','Susanna':'2B','Peggy':'2A',
   'Eliana':'2D','Michelle':'3C','Ian':'2C','Irene':'1A','Ula':'5D','Jacob':'5B'};
+function isOutdoorRoom(r){ return r && r.type==='戶外'; }
+
 let migrated=false;
 DB.teachers.forEach(t=>{
   if(t.homeRoom===undefined){ t.homeRoom=HOMEROOM_MAP[t.name]||''; migrated=true; }
@@ -680,8 +686,14 @@ DB.teachers.forEach(t=>{
     migrated=true;
   }
 });
+if(!DB.rooms.some(r=>r.type==='戶外')){
+  const newId=Math.max(0,...DB.rooms.map(r=>r.id))+1;
+  DB.rooms.push({id:newId,name:'戶外教學',loc:'校外',cap:null,type:'戶外',note:'僅週五顯示；不受教室時段規則限制，容納人數不設限'});
+  migrated=true;
+}
 if(migrated) save();
 
+const OUTDOOR_SHIFT={start:'08:30',end:'16:30'};
 // Returns {start,end,label} for a teacher's shift on a given day (0=一…4=五), or null if 未指定
 function getDayShift(t,day){
   const d=t.shiftG && t.shiftG[day];
@@ -694,8 +706,12 @@ function getDayShift(t,day){
     if(!d.start||!d.end) return null;
     return {start:d.start,end:d.end,label:d.start+'–'+d.end+'（自訂）'};
   }
+  if(d.mode==='outdoor'){
+    return {start:OUTDOOR_SHIFT.start,end:OUTDOOR_SHIFT.end,label:'🌳 戶外教學（'+OUTDOOR_SHIFT.start+'–'+OUTDOOR_SHIFT.end+'）'};
+  }
   return null;
 }
+function isOutdoorMode(t,day){ return !!(t.shiftG && t.shiftG[day] && t.shiftG[day].mode==='outdoor'); }
 // Whether a slot falls fully within an arbitrary [startStr,endStr) time range
 function slotInRange(slot,startStr,endStr){
   if(!startStr||!endStr) return null;
@@ -926,6 +942,7 @@ function renderDayShiftUI(t){
         <option value="">未指定</option>
         <option value="preset">套用預設班型</option>
         <option value="custom">自訂時段</option>
+        ${d===4?`<option value="outdoor">🌳 戶外教學（${OUTDOOR_SHIFT.start}–${OUTDOOR_SHIFT.end}）</option>`:''}
       </select>
       <div class="dsc-fields" id="t-day-${d}-fields"></div>
     </div>`).join('');
@@ -947,6 +964,8 @@ function renderDscFields(d,cfg){
     wrap.innerHTML=`<input type="time" id="t-day-${d}-start" value="${st}">
       <span style="color:var(--tm);font-size:12px">～</span>
       <input type="time" id="t-day-${d}-end" value="${en}">`;
+  }else if(mode==='outdoor'){
+    wrap.innerHTML=`<span class="hint" style="color:#B45309">固定時段 ${OUTDOOR_SHIFT.start}–${OUTDOOR_SHIFT.end}，自動帶隊至戶外教學教室</span>`;
   }else{
     wrap.innerHTML=`<span class="hint">當天不排班</span>`;
   }
@@ -965,6 +984,8 @@ function collectDayShiftG(){
         throw new Error(`${DAYS[d]}的自訂時段時間有誤（結束時間需晚於開始時間）`);
       }
       out[d]={mode:'custom',start,end};
+    }else if(mode==='outdoor'){
+      out[d]={mode:'outdoor'};
     }else{
       out[d]={mode:''};
     }
@@ -1012,7 +1033,7 @@ function delT(id){
 const TCOL={'廣場/大廳':'#3B82F6','一般教室':'#10B981','專科教室':'#8B5CF6','戶外':'#F59E0B','行政區':'#6B7280'};
 function renderRooms(){
   const total=DB.rooms.length;
-  const cap=DB.rooms.reduce((s,r)=>s+r.cap,0);
+  const cap=DB.rooms.reduce((s,r)=>s+(r.cap||0),0);
   const types=[...new Set(DB.rooms.map(r=>r.type))].length;
   document.getElementById('r-stats').innerHTML=sc(total,'教室總數')+sc(cap,'總容納人數')+sc(types,'教室類型');
 
@@ -1029,9 +1050,9 @@ function renderRooms(){
     <td>
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:60px;height:4px;background:var(--s1);border-radius:2px;overflow:hidden">
-          <div style="width:${Math.min(r.cap/100*100,100)}%;height:100%;background:${TCOL[r.type]||'#888'};border-radius:2px"></div>
+          <div style="width:${Math.min((r.cap||0)/100*100,100)}%;height:100%;background:${TCOL[r.type]||'#888'};border-radius:2px"></div>
         </div>
-        ${r.cap} 人
+        ${r.cap?r.cap+' 人':'不限'}
       </div>
     </td>
     <td><span class="chip" style="background:${TCOL[r.type]||'#888'}22;color:${TCOL[r.type]||'#555'}">${r.type}</span></td>
@@ -1259,6 +1280,7 @@ function inCareWindow(s){
 }
 // Is this teacher allowed to be assigned into this room for this slot?
 function roomEligible(t,r,s){
+  if(isOutdoorRoom(r)) return true; // 戶外教學不受時段規則限制
   if(inCareWindow(s)) return isPlazaName(r.name);
   if(isPlazaName(r.name)) return false; // 09:00-16:30 core hours use grade classrooms only
   return !t.homeRoom || t.homeRoom===r.name;
@@ -1348,15 +1370,16 @@ function renderSchedule(){
   const conflictCount=Object.values(conflicts).filter(v=>v>1).length;
   const overCount=DB.roomStudents.filter(x=>x.week===week&&x.day===day).filter(x=>{
     const r=DB.rooms.find(rr=>rr.id===x.roomId);
-    return r && x.count>r.cap;
+    return r && !isOutdoorRoom(r) && x.count>r.cap;
   }).length;
   document.getElementById('sc-alert').innerHTML=
     (conflictCount?`<div class="alert alert-warn" style="margin-top:12px">⚠ 偵測到 ${conflictCount} 處教師衝突（同一教師同時段被排入多間教室），請檢查標紅的儲存格</div>`:'')+
     (overCount?`<div class="alert" style="margin-top:8px;background:var(--err-bg);color:var(--err-t);border:1px solid #fca5a5">⚠ 偵測到 ${overCount} 處教室超收（學生人數超過容納上限），請檢查標紅框的儲存格</div>`:'');
 
-  document.getElementById('sc-body').innerHTML=DB.rooms.map(r=>{
+  const visibleRooms=DB.rooms.filter(r=>isOutdoorRoom(r)?day===4:true);
+  document.getElementById('sc-body').innerHTML=visibleRooms.map(r=>{
     const cells=DB.slots.map(s=>{
-      const applicable = inCareWindow(s) ? isPlazaName(r.name) : !isPlazaName(r.name);
+      const applicable = isOutdoorRoom(r) ? true : (inCareWindow(s) ? isPlazaName(r.name) : !isPlazaName(r.name));
       if(!applicable){
         return `<td style="padding:4px;background:var(--s1);text-align:center;color:var(--tm);font-size:11px">不適用</td>`;
       }
@@ -1373,6 +1396,9 @@ function renderSchedule(){
       // Only offer teachers whose shift covers this slot AND whose homeroom/plaza rules match this room
       let eligible=activeTeachers.filter(at=>{
         const gs=getDayShift(at,day);
+        const outdoor=isOutdoorMode(at,day);
+        if(isOutdoorRoom(r)) return outdoor; // 戶外教學教室：只列出當天標記戶外教學帶隊的老師
+        if(outdoor && gs && slotInRange(s,gs.start,gs.end)) return false; // 該時段已外出帶隊，室內教室不列入選項
         return (!gs||slotInRange(s,gs.start,gs.end)) && roomEligible(at,r,s);
       });
       // Keep the currently assigned teacher selectable even if rules no longer match, so data isn't silently lost
@@ -1380,7 +1406,7 @@ function renderSchedule(){
       const options=`<option value="">－</option>`+eligible.map(at=>
         `<option value="${at.id}"${at.id===tId?' selected':''}>${at.name}${roomEligible(at,r,s)?'':'（不符規則）'}</option>`).join('');
       const cnt=getRoomStudents(week,day,s.id,r.id);
-      const over=cnt!==''&&cnt>r.cap;
+      const over=!isOutdoorRoom(r)&&cnt!==''&&cnt>r.cap;
       return `<td style="padding:4px;${bg}">
         <select class="se" style="width:100%;min-width:84px" onchange="setAssign(${week},${day},${s.id},${r.id},this.value)">
           ${options}
@@ -1392,8 +1418,22 @@ function renderSchedule(){
         ${over?`<div style="font-size:10px;color:var(--err-t);margin-top:2px">⚠ 超收 ${cnt}/${r.cap}</div>`:''}
       </td>`;
     }).join('');
-    return `<tr><td style="font-weight:500;white-space:nowrap">${r.name}</td>${cells}</tr>`;
+    return `<tr><td style="font-weight:500;white-space:nowrap">${r.name}${isOutdoorRoom(r)?' 🌳':''}</td>${cells}</tr>`;
   }).join('');
+}
+
+function bulkClearShift(){
+  const week=parseInt(document.getElementById('sc-week').value);
+  const day=scDay;
+  const teacherId=parseInt(document.getElementById('sc-fill-teacher').value);
+  const t=DB.teachers.find(x=>x.id===teacherId);
+  if(!t){toast('請先選擇一位教師');return;}
+  const count=DB.schedule.filter(x=>x.week===week&&x.day===day&&x.teacherId===teacherId).length;
+  if(!count){toast(`${t.name} 在${DAYS[day]}目前沒有已排入的時段`);return;}
+  if(!confirm(`確定要清除 ${t.name} 在${DAYS[day]}已排入的 ${count} 個時段嗎？`)) return;
+  DB.schedule=DB.schedule.filter(x=>!(x.week===week&&x.day===day&&x.teacherId===teacherId));
+  save();renderSchedule();
+  toast(`已清除 ${t.name} 在${DAYS[day]}的 ${count} 個時段`);
 }
 
 function bulkFillShift(){
@@ -1413,7 +1453,9 @@ function bulkFillShift(){
     if(t.blocked && t.blocked.includes(slotIdx)){skippedBlocked++;return;}
 
     let roomName=null;
-    if(inCareWindow(s)){
+    if(isOutdoorMode(t,day)){
+      roomName='戶外教學';
+    }else if(inCareWindow(s)){
       // Care-time slots always go to a plaza; use the plaza matching the teacher's homeroom floor, else default 1廣
       roomName=homeroomPlaza(t.homeRoom)||'1廣';
     }else if(t.homeRoom){
