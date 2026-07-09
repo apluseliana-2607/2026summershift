@@ -207,11 +207,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     匯出設定
   </button>
-  <button class="ni" onclick="document.getElementById('imp').click()">
+  <button class="ni" onclick="requireAdmin(()=>document.getElementById('imp').click())">
     <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
     匯入設定
   </button>
   <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
+  <div class="nav-sec">管理者</div>
+  <div id="nav-auth"></div>
   <div class="nav-footer">
     <div class="ni" style="cursor:default;font-size:11px;color:var(--tm)">
       <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -238,6 +240,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     <table class="dt"><thead><tr>
       <th>姓名</th><th>年級</th><th>週時數目標</th><th>工作班型</th><th>固定教室</th><th>封鎖時段</th><th>狀態</th><th style="width:130px">操作</th>
     </tr></thead><tbody id="t-body"></tbody></table>
+  </div>
+
+  <div class="card">
+    <div class="ch">
+      <div><h3>管理者帳號設定</h3><p>能登入編輯頁面（教師管理／教室管理／時段模板／排班編輯）的帳號清單</p></div>
+    </div>
+    <table class="dt"><thead><tr>
+      <th>帳號名稱</th><th>密碼</th><th style="width:160px">操作</th>
+    </tr></thead><tbody id="admin-body"></tbody></table>
+    <div style="padding:14px 18px;border-top:1px solid var(--bd);display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="margin:0"><label>新增帳號名稱</label><input id="adm-name" placeholder="例：Eliana" style="width:160px"></div>
+      <div class="field" style="margin:0"><label>密碼</label><input id="adm-pw" placeholder="密碼" style="width:160px"></div>
+      <button class="btn btn-primary" onclick="addAdmin()">新增管理者</button>
+    </div>
+    <p style="padding:0 18px 14px;font-size:11px;color:var(--tm)">⚠ 此為前端層級的畫面權限管控，密碼儲存在瀏覽器本機資料中，非嚴謹加密機制；匯出設定檔時不會包含帳號密碼。</p>
   </div>
 </div>
 
@@ -469,6 +486,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
 </div>
 </div>
 
+<!-- ══ MODAL: 管理者登入 ══ -->
+<div class="ov" id="ov-login">
+<div class="modal" style="max-width:380px">
+  <h2>管理者登入</h2>
+  <p style="font-size:12px;color:var(--tm);margin-top:-8px;margin-bottom:12px">此頁面僅供管理者編輯，請輸入帳號密碼</p>
+  <div class="fg">
+    <div class="field"><label>帳號</label><input id="login-name" placeholder="管理者姓名" onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()"></div>
+    <div class="field"><label>密碼</label><input type="password" id="login-pw" placeholder="密碼" onkeydown="if(event.key==='Enter')doLogin()"></div>
+  </div>
+  <div id="login-error" style="color:var(--err-t);font-size:12px;margin-top:8px;min-height:16px"></div>
+  <div class="fa">
+    <button class="btn" onclick="closeOv('ov-login')">取消</button>
+    <button class="btn btn-primary" onclick="doLogin()">登入</button>
+  </div>
+</div>
+</div>
+
 <!-- ══ MODAL: 教室 ══ -->
 <div class="ov" id="ov-r">
 <div class="modal">
@@ -614,6 +648,7 @@ let DB={
   camps:    load('sch_c', DEF_CAMPS),
   schedule: load('sch_sc', []),
   roomStudents: load('sch_rs', []), // [{week,day,slotId,roomId,count}] — 學生人數，獨立於教師指派
+  admins:   load('sch_admins', [{id:1,name:'hqsummer',password:'eliana'}]), // 管理者帳號（前端層級權限控管）
   activeShift: parseInt(localStorage.getItem('sch_shift')||'-1'),
 };
 let tidSeq=Math.max(...DB.teachers.map(t=>t.id),0)+1;
@@ -676,6 +711,7 @@ function save(){
   localStorage.setItem('sch_c', JSON.stringify(DB.camps));
   localStorage.setItem('sch_sc', JSON.stringify(DB.schedule));
   localStorage.setItem('sch_rs', JSON.stringify(DB.roomStudents));
+  localStorage.setItem('sch_admins', JSON.stringify(DB.admins));
   localStorage.setItem('sch_shift', DB.activeShift);
 }
 
@@ -696,12 +732,24 @@ function slotInShift(slot, shiftIdx){
 // ══════════════════════════════════════════════
 // NAV
 // ══════════════════════════════════════════════
+const PROTECTED_PAGES=['teachers','rooms','slots','schedule']; // 需要管理者登入才能進入的頁面
+let pendingPage=null;
+
+function getSession(){ try{ return JSON.parse(localStorage.getItem('sch_session')||'null'); }catch(e){ return null; } }
+function setSession(s){ localStorage.setItem('sch_session', JSON.stringify(s)); }
+function clearSession(){ localStorage.removeItem('sch_session'); }
+
 function showPage(id){
+  if(PROTECTED_PAGES.includes(id) && !getSession()){
+    pendingPage=id;
+    openLoginModal();
+    return;
+  }
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.getElementById('ni-'+id).classList.add('active');
-  if(id==='teachers')    renderTeachers();
+  if(id==='teachers')    {renderTeachers();renderAdmins();}
   if(id==='rooms')       renderRooms();
   if(id==='slots')       renderSlots();
   if(id==='schedule')    renderScheduleInit();
@@ -709,9 +757,95 @@ function showPage(id){
   if(id==='overview')    renderOverviewInit();
 }
 
+function requireAdmin(fn){
+  if(getSession()){ fn(); return; }
+  pendingPage=null; // 純動作（如匯入），登入後不強制切頁
+  pendingAction=fn;
+  openLoginModal();
+}
+let pendingAction=null;
+
+function openLoginModal(){
+  document.getElementById('login-error').textContent='';
+  document.getElementById('login-name').value='';
+  document.getElementById('login-pw').value='';
+  openOv('ov-login');
+  setTimeout(()=>document.getElementById('login-name').focus(),50);
+}
+function doLogin(){
+  const name=document.getElementById('login-name').value.trim();
+  const pw=document.getElementById('login-pw').value;
+  const admin=DB.admins.find(a=>a.name===name&&a.password===pw);
+  if(!admin){ document.getElementById('login-error').textContent='帳號或密碼錯誤'; return; }
+  setSession({adminId:admin.id,name:admin.name});
+  closeOv('ov-login');
+  updateAuthUI();
+  toast(`歡迎回來，${admin.name}`);
+  if(pendingAction){ const fn=pendingAction; pendingAction=null; fn(); }
+  else { showPage(pendingPage||'teachers'); pendingPage=null; }
+}
+function doLogout(){
+  clearSession();
+  updateAuthUI();
+  showPage('teacherview');
+  toast('已登出');
+}
+function updateAuthUI(){
+  const s=getSession();
+  const el=document.getElementById('nav-auth');
+  if(!el) return;
+  el.innerHTML = s
+    ? `<div style="font-size:11px;color:var(--tm);padding:4px 8px">👤 ${s.name}（管理者）</div>
+       <button class="ni" onclick="doLogout()">
+         <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+         登出
+       </button>`
+    : `<button class="ni" onclick="pendingPage='teachers';pendingAction=null;openLoginModal()">
+         <svg viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+         管理者登入
+       </button>`;
+}
+
 // ══════════════════════════════════════════════
 // TEACHERS
 // ══════════════════════════════════════════════
+function renderAdmins(){
+  const session=getSession();
+  document.getElementById('admin-body').innerHTML=DB.admins.map(a=>`
+    <tr>
+      <td style="font-weight:500">${a.name}${session&&session.adminId===a.id?' <span class="badge badge-ok" style="margin-left:4px">目前登入</span>':''}</td>
+      <td style="color:var(--tm)">${'•'.repeat(Math.min(a.password.length,10))}</td>
+      <td style="text-align:right">
+        <button class="btn btn-sm" onclick="editAdminPw(${a.id})">改密碼</button>
+        ${DB.admins.length>1?`<button class="btn btn-sm btn-danger" onclick="deleteAdmin(${a.id})">刪除</button>`:''}
+      </td>
+    </tr>`).join('');
+}
+function addAdmin(){
+  const name=document.getElementById('adm-name').value.trim();
+  const pw=document.getElementById('adm-pw').value;
+  if(!name||!pw){toast('請輸入帳號名稱與密碼');return;}
+  if(DB.admins.some(a=>a.name===name)){toast('此帳號名稱已存在');return;}
+  DB.admins.push({id:Date.now(),name,password:pw});
+  document.getElementById('adm-name').value='';
+  document.getElementById('adm-pw').value='';
+  save();renderAdmins();toast('已新增管理者帳號');
+}
+function editAdminPw(id){
+  const pw=prompt('請輸入新密碼：');
+  if(!pw) return;
+  const a=DB.admins.find(x=>x.id===id);
+  if(a){ a.password=pw; save(); renderAdmins(); toast('密碼已更新'); }
+}
+function deleteAdmin(id){
+  if(DB.admins.length<=1){toast('至少需保留一組管理者帳號');return;}
+  if(!confirm('確定要刪除這組管理者帳號？')) return;
+  DB.admins=DB.admins.filter(a=>a.id!==id);
+  save();
+  const s=getSession();
+  if(s&&s.adminId===id){ clearSession(); updateAuthUI(); showPage('teacherview'); toast('您的帳號已被刪除，已登出'); return; }
+  renderAdmins();toast('已刪除');
+}
 function renderTeachers(){
   const active=DB.teachers.filter(t=>t.active).length;
   const sub=DB.teachers.filter(t=>t.grade==='代課').length;
@@ -1085,10 +1219,11 @@ function saveCamps(){save();toast('營隊設定已儲存');}
 // EXPORT / IMPORT
 // ══════════════════════════════════════════════
 function exportData(){
-  const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const {admins, ...exportable}=DB; // 管理者帳號密碼不納入匯出檔，避免備份檔外流時洩漏密碼
+  const blob=new Blob([JSON.stringify(exportable,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='排班系統設定_'+new Date().toISOString().slice(0,10)+'.json';a.click();
-  toast('設定檔已下載');
+  toast('設定檔已下載（不含管理者帳號密碼）');
 }
 function importData(e){
   const f=e.target.files[0];if(!f) return;
@@ -1521,7 +1656,8 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
 document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o) o.classList.remove('open');}));
 
 // ── INIT ──
-renderTeachers();
+updateAuthUI();
+showPage(getSession() ? 'teachers' : 'teacherview');
 </script>
 </body>
 </html>
