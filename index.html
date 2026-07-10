@@ -232,13 +232,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
   <div class="card">
     <div class="ch">
       <div><h3>教師列表</h3><p>點「編輯」可調整時數目標與封鎖時段</p></div>
-      <button class="btn btn-primary" onclick="openTModal()">
-        <svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        新增教師
-      </button>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div class="field" style="margin:0;min-width:140px">
+          <select id="t-list-week" onchange="renderTeachers()"></select>
+        </div>
+        <button class="btn btn-primary" onclick="openTModal()">
+          <svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新增教師
+        </button>
+      </div>
     </div>
     <table class="dt"><thead><tr>
-      <th>姓名</th><th>年級</th><th>週時數目標</th><th>工作班型</th><th>固定教室</th><th>封鎖時段</th><th>狀態</th><th style="width:130px">操作</th>
+      <th>姓名</th><th>年級</th><th>週時數目標</th><th>本週已排時數</th><th>工作班型</th><th>固定教室</th><th>封鎖時段</th><th>狀態</th><th style="width:130px">操作</th>
     </tr></thead><tbody id="t-body"></tbody></table>
   </div>
 
@@ -324,7 +329,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     <div style="padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">
       <div class="field" style="min-width:160px">
         <label>週次</label>
-        <select id="sc-week" onchange="renderSchedule()"></select>
+        <select id="sc-week" onchange="updateFillControls();renderSchedule()"></select>
       </div>
       <div class="field" style="min-width:260px">
         <label>星期</label>
@@ -417,19 +422,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     <div style="padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">
       <div class="field" style="min-width:160px">
         <label>週次</label>
-        <select id="ov-week" onchange="renderOverviewGrid()"></select>
+        <select id="ov-week" onchange="renderOvDayTabs();renderOverviewGrid()"></select>
       </div>
       <div class="field" style="min-width:260px">
         <label>星期</label>
         <div class="ctabs" id="ov-daytabs" style="border-bottom:none"></div>
       </div>
     </div>
-    <div id="ov-alert" style="padding:0 18px"></div>
-    <div style="overflow-x:auto;padding-bottom:4px">
-      <table class="dt" id="ov-table" style="min-width:900px">
-        <thead><tr id="ov-thead"></tr></thead>
-        <tbody id="ov-body"></tbody>
-      </table>
+    <div class="export-bar">
+      <span style="font-size:12px;font-weight:600;color:var(--ts)">📥 下載當日所有教師班表：</span>
+      <button class="btn btn-export" onclick="exportOverviewPNG()">
+        <svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        下載圖檔（PNG）
+      </button>
+      <button class="btn btn-export btn-export-pdf" onclick="exportOverviewPDF()">
+        <svg style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        下載 PDF
+      </button>
+    </div>
+    <div id="ov-export-area" style="padding:14px 18px;background:var(--s2)">
+      <div id="ov-export-title" style="font-size:14px;font-weight:600;margin-bottom:8px"></div>
+      <div id="ov-alert"></div>
+      <div style="overflow-x:auto;padding-bottom:4px;background:#fff">
+        <table class="dt" id="ov-table" style="min-width:900px">
+          <thead><tr id="ov-thead"></tr></thead>
+          <tbody id="ov-body"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -685,6 +704,15 @@ DB.teachers.forEach(t=>{
     t.shiftG=newG;
     migrated=true;
   }
+  // Migrate Friday (day 4) from a single shared config into one config per camp week (0-3),
+  // since Fridays can now differ week-to-week (戶外教學帶隊 vs 留校托育)
+  if(t.shiftG && t.shiftG[4] && t.shiftG[4].mode!==undefined){
+    const oldFri=t.shiftG[4];
+    const perWeek={};
+    DB.camps.forEach((c,w)=>{ perWeek[w]={...oldFri}; });
+    t.shiftG[4]=perWeek;
+    migrated=true;
+  }
 });
 if(!DB.rooms.some(r=>r.type==='戶外')){
   const newId=Math.max(0,...DB.rooms.map(r=>r.id))+1;
@@ -694,9 +722,9 @@ if(!DB.rooms.some(r=>r.type==='戶外')){
 if(migrated) save();
 
 const OUTDOOR_SHIFT={start:'08:30',end:'16:30'};
-// Returns {start,end,label} for a teacher's shift on a given day (0=一…4=五), or null if 未指定
-function getDayShift(t,day){
-  const d=t.shiftG && t.shiftG[day];
+// Returns {start,end,label} for a teacher's shift on a given day (0=一…4=五) & week (0-3; only used for Friday), or null if 未指定
+function getDayShift(t,day,week){
+  const d = day===4 ? (t.shiftG && t.shiftG[4] && t.shiftG[4][week]) : (t.shiftG && t.shiftG[day]);
   if(!d || !d.mode) return null;
   if(d.mode==='preset'){
     const p=SHIFTS[parseInt(d.presetId)];
@@ -711,7 +739,10 @@ function getDayShift(t,day){
   }
   return null;
 }
-function isOutdoorMode(t,day){ return !!(t.shiftG && t.shiftG[day] && t.shiftG[day].mode==='outdoor'); }
+function isOutdoorMode(t,day,week){
+  const d = day===4 ? (t.shiftG && t.shiftG[4] && t.shiftG[4][week]) : (t.shiftG && t.shiftG[day]);
+  return !!(d && d.mode==='outdoor');
+}
 // Whether a slot falls fully within an arbitrary [startStr,endStr) time range
 function slotInRange(slot,startStr,endStr){
   if(!startStr||!endStr) return null;
@@ -863,19 +894,31 @@ function deleteAdmin(id){
   renderAdmins();toast('已刪除');
 }
 function renderTeachers(){
+  const wsel=document.getElementById('t-list-week');
+  const prevW=wsel.options.length?wsel.value:null;
+  wsel.innerHTML=DB.camps.map((c,i)=>`<option value="${i}">${c.label}</option>`).join('');
+  if(prevW && [...wsel.options].some(o=>o.value===prevW)) wsel.value=prevW;
+  const listWeek=parseInt(wsel.value||0);
+
   const active=DB.teachers.filter(t=>t.active).length;
   const sub=DB.teachers.filter(t=>t.grade==='代課').length;
-  const shifts=DB.teachers.filter(t=>t.shiftG&&[0,1,2,3,4].some(d=>getDayShift(t,d))).length;
+  const shifts=DB.teachers.filter(t=>t.shiftG&&[0,1,2,3,4].some(d=>getDayShift(t,d,listWeek))).length;
   document.getElementById('t-stats').innerHTML=
     sc(DB.teachers.length,'教師總人數')+sc(active,'目前啟用')+sc(shifts,'已指定班型');
 
   document.getElementById('t-body').innerHTML=DB.teachers.map(t=>{
-    const anySet=[0,1,2,3,4].some(d=>getDayShift(t,d));
+    const anySet=[0,1,2,3,4].some(d=>getDayShift(t,d,listWeek));
     const shiftCell = anySet
       ? `<div style="font-size:11px;line-height:1.6">
-           ${DAYS.map((dl,d)=>{const gs=getDayShift(t,d);return `<div>${dl}：${gs?gs.label:'—'}</div>`;}).join('')}
+           ${DAYS.map((dl,d)=>{const gs=getDayShift(t,d,listWeek);return `<div>${dl}：${gs?gs.label:'—'}</div>`;}).join('')}
          </div>`
       : `<span style="color:var(--tm)">未指定</span>`;
+    let hrs=0;
+    DB.schedule.filter(x=>x.week===listWeek&&x.teacherId===t.id).forEach(a=>{
+      const s=DB.slots.find(x=>x.id===a.slotId);
+      if(s) hrs+=calcHrs(s.start,s.end);
+    });
+    const hrsColor = hrs<t.min?'var(--warn-t)':(hrs>t.max?'var(--err-t)':'var(--ok-t)');
     return `<tr>
       <td><div style="display:flex;align-items:center;gap:8px">
         <span class="dot" style="background:${t.color}"></span>
@@ -883,6 +926,7 @@ function renderTeachers(){
       </div></td>
       <td><span class="chip" style="background:${t.color}22;color:${t.color}">${t.grade}</span></td>
       <td><span style="color:var(--ts)">${t.min}～${t.max} h/週</span></td>
+      <td><span style="color:${hrsColor};font-weight:600">${hrs.toFixed(1)}h</span></td>
       <td>${shiftCell}</td>
       <td>${t.homeRoom?`<span class="chip" style="background:var(--ok-bg);color:var(--ok-t)">${t.homeRoom}</span>`:`<span style="color:var(--tm)">彈性</span>`}</td>
       <td><span style="color:${t.blocked.length?'var(--warn-t)':'var(--tm)'}">
@@ -933,63 +977,77 @@ function openTModal(id){
   openOv('ov-t');
   document.getElementById('t-name').focus();
 }
-// ── 五天班型設定 UI ──
-function renderDayShiftUI(t){
-  const cont=document.getElementById('t-dayshift');
-  cont.innerHTML=DAYS.map((dl,d)=>`<div class="dsc-day">
-      <div class="dsc-lbl">${dl}</div>
-      <select class="dsc-mode" id="t-day-${d}-mode" onchange="dscModeChange(${d})">
+// ── 班型設定 UI（週一～四固定；週五依各週次分別設定） ──
+function dscRowHTML(suffix,label,allowOutdoor){
+  return `<div class="dsc-day">
+      <div class="dsc-lbl" style="width:auto;min-width:60px">${label}</div>
+      <select class="dsc-mode" id="t-day-${suffix}-mode" onchange="dscModeChange('${suffix}')">
         <option value="">未指定</option>
         <option value="preset">套用預設班型</option>
         <option value="custom">自訂時段</option>
-        ${d===4?`<option value="outdoor">🌳 戶外教學（${OUTDOOR_SHIFT.start}–${OUTDOOR_SHIFT.end}）</option>`:''}
+        ${allowOutdoor?`<option value="outdoor">🌳 戶外教學（${OUTDOOR_SHIFT.start}–${OUTDOOR_SHIFT.end}）</option>`:''}
       </select>
-      <div class="dsc-fields" id="t-day-${d}-fields"></div>
-    </div>`).join('');
-  DAYS.forEach((_,d)=>{
+      <div class="dsc-fields" id="t-day-${suffix}-fields"></div>
+    </div>`;
+}
+function renderDayShiftUI(t){
+  const cont=document.getElementById('t-dayshift');
+  let html='';
+  for(let d=0;d<4;d++) html+=dscRowHTML(String(d),DAYS[d],false);
+  html+=`<div class="div-label" style="margin:10px 0 4px">週五（各週次可分別設定，因應戶外教學帶隊／留校托育輪替）</div>`;
+  DB.camps.forEach((c,w)=>{ html+=dscRowHTML(`4-${w}`,c.label,true); });
+  cont.innerHTML=html;
+
+  for(let d=0;d<4;d++){
     const cfg=(t&&t.shiftG&&t.shiftG[d])||{mode:''};
-    document.getElementById('t-day-'+d+'-mode').value=cfg.mode||'';
-    renderDscFields(d,cfg);
+    document.getElementById(`t-day-${d}-mode`).value=cfg.mode||'';
+    renderDscFields(String(d),cfg);
+  }
+  DB.camps.forEach((c,w)=>{
+    const cfg=(t&&t.shiftG&&t.shiftG[4]&&t.shiftG[4][w])||{mode:''};
+    document.getElementById(`t-day-4-${w}-mode`).value=cfg.mode||'';
+    renderDscFields(`4-${w}`,cfg);
   });
 }
-function renderDscFields(d,cfg){
-  const mode=document.getElementById('t-day-'+d+'-mode').value;
-  const wrap=document.getElementById('t-day-'+d+'-fields');
+function renderDscFields(suffix,cfg){
+  const mode=document.getElementById(`t-day-${suffix}-mode`).value;
+  const wrap=document.getElementById(`t-day-${suffix}-fields`);
   if(mode==='preset'){
-    wrap.innerHTML=`<select id="t-day-${d}-preset">
+    wrap.innerHTML=`<select id="t-day-${suffix}-preset">
       ${SHIFTS.map((sh,i)=>`<option value="${i}"${cfg&&String(cfg.presetId)===String(i)?' selected':''}>${sh.label}（${sh.desc}）</option>`).join('')}
     </select>`;
   }else if(mode==='custom'){
     const st=(cfg&&cfg.start)||'08:00', en=(cfg&&cfg.end)||'16:30';
-    wrap.innerHTML=`<input type="time" id="t-day-${d}-start" value="${st}">
+    wrap.innerHTML=`<input type="time" id="t-day-${suffix}-start" value="${st}">
       <span style="color:var(--tm);font-size:12px">～</span>
-      <input type="time" id="t-day-${d}-end" value="${en}">`;
+      <input type="time" id="t-day-${suffix}-end" value="${en}">`;
   }else if(mode==='outdoor'){
     wrap.innerHTML=`<span class="hint" style="color:#B45309">固定時段 ${OUTDOOR_SHIFT.start}–${OUTDOOR_SHIFT.end}，自動帶隊至戶外教學教室</span>`;
   }else{
     wrap.innerHTML=`<span class="hint">當天不排班</span>`;
   }
 }
-function dscModeChange(d){ renderDscFields(d,{mode:document.getElementById('t-day-'+d+'-mode').value}); }
+function dscModeChange(suffix){ renderDscFields(suffix,{mode:document.getElementById(`t-day-${suffix}-mode`).value}); }
+function collectOneShift(suffix,errLabel){
+  const mode=document.getElementById(`t-day-${suffix}-mode`).value;
+  if(mode==='preset') return {mode:'preset',presetId:document.getElementById(`t-day-${suffix}-preset`).value};
+  if(mode==='custom'){
+    const start=document.getElementById(`t-day-${suffix}-start`).value;
+    const end=document.getElementById(`t-day-${suffix}-end`).value;
+    if(!start||!end||calcHrs(start,end)<=0){
+      throw new Error(`${errLabel}的自訂時段時間有誤（結束時間需晚於開始時間）`);
+    }
+    return {mode:'custom',start,end};
+  }
+  if(mode==='outdoor') return {mode:'outdoor'};
+  return {mode:''};
+}
 function collectDayShiftG(){
   const out={};
-  for(let d=0;d<5;d++){
-    const mode=document.getElementById('t-day-'+d+'-mode').value;
-    if(mode==='preset'){
-      out[d]={mode:'preset',presetId:document.getElementById('t-day-'+d+'-preset').value};
-    }else if(mode==='custom'){
-      const start=document.getElementById('t-day-'+d+'-start').value;
-      const end=document.getElementById('t-day-'+d+'-end').value;
-      if(!start||!end||calcHrs(start,end)<=0){
-        throw new Error(`${DAYS[d]}的自訂時段時間有誤（結束時間需晚於開始時間）`);
-      }
-      out[d]={mode:'custom',start,end};
-    }else if(mode==='outdoor'){
-      out[d]={mode:'outdoor'};
-    }else{
-      out[d]={mode:''};
-    }
-  }
+  for(let d=0;d<4;d++) out[d]=collectOneShift(String(d),DAYS[d]);
+  const fri={};
+  DB.camps.forEach((c,w)=>{ fri[w]=collectOneShift(`4-${w}`,'週五／'+c.label); });
+  out[4]=fri;
   return out;
 }
 function pickColor(c,el){selColor=c;document.querySelectorAll('.cs').forEach(s=>s.classList.remove('sel'));el.classList.add('sel');}
@@ -1305,11 +1363,12 @@ function renderScheduleInit(){
   renderSchedule();
 }
 function updateFillControls(){
+  const week=parseInt(document.getElementById('sc-week').value||0);
   const fteach=document.getElementById('sc-fill-teacher');
   const prevFT=fteach.value;
-  const dayTeachers=DB.teachers.filter(t=>t.active&&getDayShift(t,scDay));
+  const dayTeachers=DB.teachers.filter(t=>t.active&&getDayShift(t,scDay,week));
   fteach.innerHTML=dayTeachers.map(t=>{
-    const gs=getDayShift(t,scDay);
+    const gs=getDayShift(t,scDay,week);
     return `<option value="${t.id}">${t.name}（${gs.label}／${t.homeRoom?'固定教室 '+t.homeRoom:'彈性教室'}）</option>`;
   }).join('');
   if(prevFT && [...fteach.options].some(o=>o.value===prevFT)) fteach.value=prevFT;
@@ -1395,9 +1454,9 @@ function renderSchedule(){
       else if(t) bg=`background:${t.color}1c`;
       // Only offer teachers whose shift covers this slot AND whose homeroom/plaza rules match this room
       let eligible=activeTeachers.filter(at=>{
-        const gs=getDayShift(at,day);
-        const outdoor=isOutdoorMode(at,day);
-        if(isOutdoorRoom(r)) return outdoor; // 戶外教學教室：只列出當天標記戶外教學帶隊的老師
+        const gs=getDayShift(at,day,week);
+        const outdoor=isOutdoorMode(at,day,week);
+        if(isOutdoorRoom(r)) return outdoor; // 戶外教學教室：只列出當週該天標記戶外教學帶隊的老師
         if(outdoor && gs && slotInRange(s,gs.start,gs.end)) return false; // 該時段已外出帶隊，室內教室不列入選項
         return (!gs||slotInRange(s,gs.start,gs.end)) && roomEligible(at,r,s);
       });
@@ -1442,7 +1501,7 @@ function bulkFillShift(){
   const teacherId=parseInt(document.getElementById('sc-fill-teacher').value);
   const fallbackRoomId=parseInt(document.getElementById('sc-fill-room').value);
   const t=DB.teachers.find(x=>x.id===teacherId);
-  const gs=t?getDayShift(t,day):null;
+  const gs=t?getDayShift(t,day,week):null;
   if(!t||!gs){toast(`請先選擇一位在${DAYS[day]}已指定班型的教師`);return;}
   const targetSlots=DB.slots.filter(s=>slotInRange(s,gs.start,gs.end));
   if(!targetSlots.length){toast('該班型沒有涵蓋任何時段');return;}
@@ -1453,7 +1512,7 @@ function bulkFillShift(){
     if(t.blocked && t.blocked.includes(slotIdx)){skippedBlocked++;return;}
 
     let roomName=null;
-    if(isOutdoorMode(t,day)){
+    if(isOutdoorMode(t,day,week)){
       roomName='戶外教學';
     }else if(inCareWindow(s)){
       // Care-time slots always go to a plaza; use the plaza matching the teacher's homeroom floor, else default 1廣
@@ -1495,6 +1554,38 @@ function renderTeacherViewInit(){
 
   renderTeacherView();
 }
+const PROGRAM_YEAR=2026; // 用於從週次標籤（例如「第一週 8/3」）換算實際日期
+function campMondayDate(camp){
+  if(!camp||!camp.label) return null;
+  const m=camp.label.match(/(\d{1,2})\/(\d{1,2})/);
+  if(!m) return null;
+  return new Date(PROGRAM_YEAR, parseInt(m[1])-1, parseInt(m[2]));
+}
+// day: 0=週一…4=週五 → 回傳 "8/3" 這種格式；抓不到週次日期時回傳空字串
+function dateForDay(camp,day){
+  const mon=campMondayDate(camp);
+  if(!mon) return '';
+  const d=new Date(mon); d.setDate(d.getDate()+day);
+  return (d.getMonth()+1)+'/'+d.getDate();
+}
+
+const CAMP_YEAR=2026; // 暑期班年份，用來將週次標籤（如「第一週 8/3」）換算成星期一～五的實際日期
+// 從週次標籤解析出當週星期一的日期，回傳 Date；解析失敗回傳 null
+function getWeekMonday(week){
+  const label=DB.camps[week]?DB.camps[week].label:'';
+  const m=label.match(/(\d{1,2})\s*\/\s*(\d{1,2})/);
+  if(!m) return null;
+  return new Date(CAMP_YEAR, parseInt(m[1])-1, parseInt(m[2]));
+}
+// 取得指定週次、星期幾（0=一…4=五）的日期字串，例如 "8/3"；解析失敗回傳空字串
+function getDayDate(week,day){
+  const mon=getWeekMonday(week);
+  if(!mon) return '';
+  const d=new Date(mon);
+  d.setDate(d.getDate()+day);
+  return (d.getMonth()+1)+'/'+d.getDate();
+}
+
 function renderTeacherView(){
   const tsel=document.getElementById('tv-teacher');
   if(!tsel.options.length){
@@ -1542,7 +1633,8 @@ function renderTeacherView(){
       if(!r) return `<td style="text-align:center;color:var(--tm);font-size:11px">－</td>`;
       return `<td style="text-align:center;background:${t.color}1c;color:${t.color};font-weight:600;font-size:12px">${r.name}</td>`;
     }).join('');
-    return `<tr><td style="font-weight:600">${dLabel}</td>${cells}</tr>`;
+    const dateStr=getDayDate(week,day);
+    return `<tr><td style="font-weight:600">${dLabel}${dateStr?`<br><span style="font-weight:400;color:var(--tm);font-size:10px">${dateStr}</span>`:''}</td>${cells}</tr>`;
   }).join('');
 
   document.getElementById('tv-body').innerHTML=
@@ -1586,6 +1678,37 @@ function exportTeacherPDF(){
 // ══════════════════════════════════════════════
 // TEACHER OVERVIEW (教師總覽：管理者視角)
 // ══════════════════════════════════════════════
+function exportOverviewFilename(ext){
+  const wsel=document.getElementById('ov-week');
+  const week=parseInt(wsel.value||0);
+  const weekLabel=(DB.camps[week]?DB.camps[week].label:'').replace(/\s+/g,'');
+  return `教師時段總覽_${weekLabel}_${DAYS[ovDay]}.${ext}`;
+}
+function exportOverviewPNG(){
+  const el=document.getElementById('ov-export-area');
+  if(typeof html2canvas==='undefined'){toast('圖檔匯出元件載入失敗，請確認網路連線');return;}
+  toast('圖檔產生中…');
+  html2canvas(el,{backgroundColor:'#ffffff',scale:2}).then(canvas=>{
+    const a=document.createElement('a');
+    a.href=canvas.toDataURL('image/png');
+    a.download=exportOverviewFilename('png');
+    a.click();
+    toast('圖檔已下載');
+  }).catch(()=>toast('圖檔匯出失敗'));
+}
+function exportOverviewPDF(){
+  const el=document.getElementById('ov-export-area');
+  if(typeof html2canvas==='undefined'||typeof window.jspdf==='undefined'){toast('PDF 匯出元件載入失敗，請確認網路連線');return;}
+  toast('PDF 產生中…');
+  html2canvas(el,{backgroundColor:'#ffffff',scale:2}).then(canvas=>{
+    const {jsPDF}=window.jspdf;
+    const w=canvas.width, h=canvas.height;
+    const pdf=new jsPDF({orientation:w>h?'landscape':'portrait',unit:'px',format:[w,h]});
+    pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,w,h);
+    pdf.save(exportOverviewFilename('pdf'));
+    toast('PDF 已下載');
+  }).catch(()=>toast('PDF 匯出失敗'));
+}
 let ovDay=0;
 function renderOverviewInit(){
   const hwsel=document.getElementById('ov-hrs-week');
@@ -1598,12 +1721,17 @@ function renderOverviewInit(){
   wsel.innerHTML=DB.camps.map((c,i)=>`<option value="${i}">${c.label}</option>`).join('');
   if(prevW && [...wsel.options].some(o=>o.value===prevW)) wsel.value=prevW;
 
-  document.getElementById('ov-daytabs').innerHTML=DAYS.map((d,i)=>
-    `<div class="ctab${i===ovDay?' active':''}" onclick="setOvDay(${i},this)">${d}</div>`
-  ).join('');
-
+  renderOvDayTabs();
   renderOverviewStats();
   renderOverviewGrid();
+}
+function renderOvDayTabs(){
+  const wsel=document.getElementById('ov-week');
+  const week=wsel.options.length?parseInt(wsel.value):0;
+  document.getElementById('ov-daytabs').innerHTML=DAYS.map((d,i)=>{
+    const dateStr=getDayDate(week,i);
+    return `<div class="ctab${i===ovDay?' active':''}" onclick="setOvDay(${i},this)">${d}${dateStr?`<br><span style="font-size:10px;font-weight:400">${dateStr}</span>`:''}</div>`;
+  }).join('');
 }
 function setOvDay(i,el){
   ovDay=i;
@@ -1657,6 +1785,11 @@ function renderOverviewGrid(){
   const activeTeachers=DB.teachers.filter(t=>t.active);
   const conflicts=scConflictMap(week,day);
   const conflictCount=Object.values(conflicts).filter(v=>v>1).length;
+  const weekLabel=DB.camps[week]?DB.camps[week].label:'';
+  const dateStr=getDayDate(week,day);
+
+  document.getElementById('ov-export-title').innerHTML=
+    `當日教師時段總覽　<span style="font-weight:400;color:var(--ts);font-size:13px">${weekLabel}／${DAYS[day]}${dateStr?'（'+dateStr+'）':''}</span>`;
 
   document.getElementById('ov-alert').innerHTML=conflictCount?
     `<div class="alert alert-warn" style="margin-top:12px">⚠ ${DAYS[day]}偵測到 ${conflictCount} 處教師衝突，請至「排班編輯」頁面確認</div>`:'';
@@ -1666,7 +1799,7 @@ function renderOverviewGrid(){
     DB.slots.map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
 
   document.getElementById('ov-body').innerHTML=activeTeachers.map(t=>{
-    const gs=getDayShift(t,day);
+    const gs=getDayShift(t,day,week);
     const cells=DB.slots.map(s=>{
       const found=DB.schedule.find(x=>x.week===week&&x.day===day&&x.teacherId===t.id&&x.slotId===s.id);
       const slotIdx=DB.slots.findIndex(x=>x.id===s.id);
