@@ -176,8 +176,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     <h1>暑期排班系統</h1>
     <p>8/3 ～ 8/28 Phase 1 設定</p>
   </div>
-  <div class="nav-sec">設定模組</div>
-  <button class="ni active" id="ni-teachers" onclick="showPage('teachers')">
+  <div class="nav-sec">教師閱覽</div>
+  <button class="ni active" id="ni-teacherview" onclick="showPage('teacherview')">
+    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    教師檢視
+  </button>
+  <button class="ni" id="ni-overview" onclick="showPage('overview')">
+    <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.1-2.8-2.8L7 14.1"/></svg>
+    教師總覽
+  </button>
+  <div class="nav-sec">管理者操作</div>
+  <button class="ni" id="ni-teachers" onclick="showPage('teachers')">
     <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
     教師管理
   </button>
@@ -189,20 +198,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
     時段模板
   </button>
-  <div class="nav-sec">排班作業</div>
   <button class="ni" id="ni-schedule" onclick="showPage('schedule')">
     <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
     排班編輯
   </button>
-  <button class="ni" id="ni-teacherview" onclick="showPage('teacherview')">
-    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-    教師檢視
-  </button>
-  <button class="ni" id="ni-overview" onclick="showPage('overview')">
-    <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.1-2.8-2.8L7 14.1"/></svg>
-    教師總覽
-  </button>
-  <div class="nav-sec">資料</div>
+  <div class="nav-sec">資料模組</div>
   <button class="ni" onclick="exportData()">
     <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     匯出設定
@@ -212,6 +212,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     匯入設定
   </button>
   <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
+  <button class="ni" id="ni-admins" onclick="showPage('admins')">
+    <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    管理者帳號
+  </button>
   <div class="nav-sec">管理者</div>
   <div id="nav-auth"></div>
   <div class="nav-footer">
@@ -226,7 +230,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
 <main class="main">
 
 <!-- ██ PAGE: 教師 ██ -->
-<div class="page active" id="page-teachers">
+<div class="page" id="page-teachers">
   <div class="ph"><h2>教師管理</h2><p>新增、編輯或停用教師，設定年級、時數目標與不可排班時段</p></div>
   <div class="sc" id="t-stats"></div>
   <div class="card">
@@ -245,21 +249,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     <table class="dt"><thead><tr>
       <th>姓名</th><th>年級</th><th>週時數目標</th><th>本週已排時數</th><th>工作班型</th><th>固定教室</th><th>封鎖時段</th><th>狀態</th><th style="width:130px">操作</th>
     </tr></thead><tbody id="t-body"></tbody></table>
-  </div>
-
-  <div class="card">
-    <div class="ch">
-      <div><h3>管理者帳號設定</h3><p>能登入編輯頁面（教師管理／教室管理／時段模板／排班編輯）的帳號清單</p></div>
-    </div>
-    <table class="dt"><thead><tr>
-      <th>帳號名稱</th><th>密碼</th><th style="width:160px">操作</th>
-    </tr></thead><tbody id="admin-body"></tbody></table>
-    <div style="padding:14px 18px;border-top:1px solid var(--bd);display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
-      <div class="field" style="margin:0"><label>新增帳號名稱</label><input id="adm-name" placeholder="例：Eliana" style="width:160px"></div>
-      <div class="field" style="margin:0"><label>密碼</label><input id="adm-pw" placeholder="密碼" style="width:160px"></div>
-      <button class="btn btn-primary" onclick="addAdmin()">新增管理者</button>
-    </div>
-    <p style="padding:0 18px 14px;font-size:11px;color:var(--tm)">⚠ 此為前端層級的畫面權限管控，密碼儲存在瀏覽器本機資料中，非嚴謹加密機制；匯出設定檔時不會包含帳號密碼。</p>
   </div>
 </div>
 
@@ -375,7 +364,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
 </div>
 
 <!-- ██ PAGE: 教師檢視 ██ -->
-<div class="page" id="page-teacherview">
+<div class="page active" id="page-teacherview">
   <div class="ph"><h2>教師檢視</h2><p>查詢單一教師本週班表與時數狀況（唯讀），並可下載班表圖檔或 PDF</p></div>
   <div class="card">
     <div class="ch">
@@ -459,6 +448,33 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
         </table>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ██ PAGE: 管理者帳號 ██ -->
+<div class="page" id="page-admins">
+  <div class="ph"><h2>管理者帳號</h2><p>能登入編輯頁面（教師管理／教室管理／時段模板／排班編輯／匯入設定）的帳號清單，並保留異動紀錄</p></div>
+  <div class="card">
+    <div class="ch">
+      <div><h3>帳號清單</h3><p>新增、修改密碼或刪除管理者帳號</p></div>
+    </div>
+    <table class="dt"><thead><tr>
+      <th>帳號名稱</th><th>密碼</th><th style="width:160px">操作</th>
+    </tr></thead><tbody id="admin-body"></tbody></table>
+    <div style="padding:14px 18px;border-top:1px solid var(--bd);display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="margin:0"><label>新增帳號名稱</label><input id="adm-name" placeholder="例：Eliana" style="width:160px"></div>
+      <div class="field" style="margin:0"><label>密碼</label><input id="adm-pw" placeholder="密碼" style="width:160px"></div>
+      <button class="btn btn-primary" onclick="addAdmin()">新增管理者</button>
+    </div>
+    <p style="padding:0 18px 14px;font-size:11px;color:var(--tm)">⚠ 此為前端層級的畫面權限管控，密碼儲存在瀏覽器本機資料中，非嚴謹加密機制；匯出設定檔時不會包含帳號密碼。</p>
+  </div>
+  <div class="card">
+    <div class="ch">
+      <div><h3>異動紀錄</h3><p>帳號新增、改密碼、刪除的操作紀錄；跨校區使用時可作為留存紀錄</p></div>
+    </div>
+    <table class="dt"><thead><tr>
+      <th style="width:160px">時間</th><th style="width:120px">操作者</th><th>異動內容</th>
+    </tr></thead><tbody id="admin-log-body"></tbody></table>
   </div>
 </div>
 
@@ -681,6 +697,7 @@ let DB={
   schedule: load('sch_sc', []),
   roomStudents: load('sch_rs', []), // [{week,day,slotId,roomId,count}] — 學生人數，獨立於教師指派
   admins:   load('sch_admins', [{id:1,name:'hqsummer',password:'eliana'}]), // 管理者帳號（前端層級權限控管）
+  adminLog: load('sch_admin_log', []), // 帳號異動紀錄（新增/改密碼/刪除），供跨校區留存查核
   activeShift: parseInt(localStorage.getItem('sch_shift')||'-1'),
 };
 let tidSeq=Math.max(...DB.teachers.map(t=>t.id),0)+1;
@@ -799,6 +816,7 @@ function save(){
   localStorage.setItem('sch_sc', JSON.stringify(DB.schedule));
   localStorage.setItem('sch_rs', JSON.stringify(DB.roomStudents));
   localStorage.setItem('sch_admins', JSON.stringify(DB.admins));
+  localStorage.setItem('sch_admin_log', JSON.stringify(DB.adminLog));
   localStorage.setItem('sch_shift', DB.activeShift);
 }
 
@@ -819,7 +837,7 @@ function slotInShift(slot, shiftIdx){
 // ══════════════════════════════════════════════
 // NAV
 // ══════════════════════════════════════════════
-const PROTECTED_PAGES=['teachers','rooms','slots','schedule']; // 需要管理者登入才能進入的頁面
+const PROTECTED_PAGES=['teachers','rooms','slots','schedule','admins']; // 需要管理者登入才能進入的頁面
 let pendingPage=null;
 
 function getSession(){ try{ return JSON.parse(localStorage.getItem('sch_session')||'null'); }catch(e){ return null; } }
@@ -836,12 +854,13 @@ function showPage(id){
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   document.getElementById('ni-'+id).classList.add('active');
-  if(id==='teachers')    {renderTeachers();renderAdmins();}
+  if(id==='teachers')    renderTeachers();
   if(id==='rooms')       renderRooms();
   if(id==='slots')       renderSlots();
   if(id==='schedule')    renderScheduleInit();
   if(id==='teacherview') renderTeacherViewInit();
   if(id==='overview')    renderOverviewInit();
+  if(id==='admins')      renderAdmins();
 }
 
 function requireAdmin(fn){
@@ -896,6 +915,27 @@ function updateAuthUI(){
 // ══════════════════════════════════════════════
 // TEACHERS
 // ══════════════════════════════════════════════
+function logAdminAction(action){
+  const s=getSession();
+  DB.adminLog.unshift({ts:new Date().toISOString(), actor:(s?s.name:'（未登入）'), action});
+  if(DB.adminLog.length>300) DB.adminLog.length=300; // 避免無限累積
+}
+function fmtLogTime(iso){
+  const d=new Date(iso);
+  const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}/${p(d.getMonth()+1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function renderAdminLog(){
+  const el=document.getElementById('admin-log-body');
+  if(!el) return;
+  el.innerHTML = DB.adminLog.length
+    ? DB.adminLog.map(l=>`<tr>
+        <td style="color:var(--tm);font-size:12px">${fmtLogTime(l.ts)}</td>
+        <td style="font-weight:500">${l.actor}</td>
+        <td>${l.action}</td>
+      </tr>`).join('')
+    : `<tr><td colspan="3" style="color:var(--tm)">尚無異動紀錄</td></tr>`;
+}
 function renderAdmins(){
   const session=getSession();
   document.getElementById('admin-body').innerHTML=DB.admins.map(a=>`
@@ -907,6 +947,7 @@ function renderAdmins(){
         ${DB.admins.length>1?`<button class="btn btn-sm btn-danger" onclick="deleteAdmin(${a.id})">刪除</button>`:''}
       </td>
     </tr>`).join('');
+  renderAdminLog();
 }
 function addAdmin(){
   const name=document.getElementById('adm-name').value.trim();
@@ -914,6 +955,7 @@ function addAdmin(){
   if(!name||!pw){toast('請輸入帳號名稱與密碼');return;}
   if(DB.admins.some(a=>a.name===name)){toast('此帳號名稱已存在');return;}
   DB.admins.push({id:Date.now(),name,password:pw});
+  logAdminAction(`新增管理者帳號「${name}」`);
   document.getElementById('adm-name').value='';
   document.getElementById('adm-pw').value='';
   save();renderAdmins();toast('已新增管理者帳號');
@@ -922,12 +964,14 @@ function editAdminPw(id){
   const pw=prompt('請輸入新密碼：');
   if(!pw) return;
   const a=DB.admins.find(x=>x.id===id);
-  if(a){ a.password=pw; save(); renderAdmins(); toast('密碼已更新'); }
+  if(a){ a.password=pw; logAdminAction(`修改「${a.name}」的密碼`); save(); renderAdmins(); toast('密碼已更新'); }
 }
 function deleteAdmin(id){
   if(DB.admins.length<=1){toast('至少需保留一組管理者帳號');return;}
   if(!confirm('確定要刪除這組管理者帳號？')) return;
-  DB.admins=DB.admins.filter(a=>a.id!==id);
+  const a=DB.admins.find(x=>x.id===id);
+  DB.admins=DB.admins.filter(x=>x.id!==id);
+  if(a) logAdminAction(`刪除管理者帳號「${a.name}」`);
   save();
   const s=getSession();
   if(s&&s.adminId===id){ clearSession(); updateAuthUI(); showPage('teacherview'); toast('您的帳號已被刪除，已登出'); return; }
@@ -1379,6 +1423,7 @@ function importData(e){
       if(d.camps)    DB.camps=d.camps;
       if(d.schedule) DB.schedule=d.schedule;
       if(d.roomStudents) DB.roomStudents=d.roomStudents;
+      if(d.adminLog)  DB.adminLog=d.adminLog;
       if(d.activeShift!==undefined) DB.activeShift=d.activeShift;
       save();showPage('teachers');toast('設定已匯入');
     }catch{alert('匯入失敗：格式不正確');}
@@ -2051,7 +2096,7 @@ document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.
 
 // ── INIT ──
 updateAuthUI();
-showPage(getSession() ? 'teachers' : 'teacherview');
+showPage('teacherview');
 </script>
 </body>
 </html>
