@@ -39,6 +39,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
 .ph h2{font-size:20px;font-weight:600}
 .ph p{font-size:13px;color:var(--ts);margin-top:4px}
 
+/* MOBILE NAV (hamburger + slide-in sidebar) */
+.nav-toggle{display:none;position:fixed;top:10px;left:12px;z-index:60;width:38px;height:38px;border-radius:var(--r);border:1px solid var(--bd);background:var(--s2);align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.nav-toggle svg{width:20px;height:20px;fill:none;stroke:var(--tp);stroke-width:2;stroke-linecap:round}
+.nav-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:55}
+@media (max-width: 768px){
+  .nav-toggle{display:flex}
+  .shell{position:relative}
+  .nav{position:fixed;top:0;left:0;bottom:0;z-index:58;transform:translateX(-100%);transition:transform .2s ease;box-shadow:2px 0 12px rgba(0,0,0,.15)}
+  .shell.nav-open .nav{transform:translateX(0)}
+  .shell.nav-open .nav-backdrop{display:block}
+  .main{width:100%}
+  .page{padding:64px 14px 24px}
+  .ph h2{font-size:18px}
+}
+
 /* CARDS */
 .card{background:var(--s2);border:1px solid var(--bd);border-radius:10px;margin-bottom:20px;overflow:hidden}
 .ch{padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -168,7 +183,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
 </style>
 </head>
 <body>
-<div class="shell">
+<div class="shell" id="shell">
+
+<button class="nav-toggle" id="nav-toggle" onclick="toggleNav()" aria-label="選單">
+  <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
+<div class="nav-backdrop" id="nav-backdrop" onclick="closeNav()"></div>
 
 <!-- ══ NAV ══ -->
 <nav class="nav">
@@ -895,6 +915,9 @@ function getSession(){ try{ return JSON.parse(localStorage.getItem('sch_session'
 function setSession(s){ localStorage.setItem('sch_session', JSON.stringify(s)); }
 function clearSession(){ localStorage.removeItem('sch_session'); }
 
+function toggleNav(){ document.getElementById('shell').classList.toggle('nav-open'); }
+function closeNav(){ document.getElementById('shell').classList.remove('nav-open'); }
+
 function showPage(id){
   if(PROTECTED_PAGES.includes(id) && !getSession()){
     pendingPage=id;
@@ -912,6 +935,7 @@ function showPage(id){
   if(id==='teacherview') renderTeacherViewInit();
   if(id==='overview')    renderOverviewInit();
   if(id==='admins')      renderAdmins();
+  closeNav(); // 手機版：切換頁面後自動收合選單，直接看到內容
 }
 
 function requireAdmin(fn){
