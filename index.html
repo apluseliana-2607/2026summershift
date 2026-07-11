@@ -297,6 +297,23 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     </div>
   </div>
 
+  <!-- Shift preset management -->
+  <div class="card">
+    <div class="ch">
+      <div><h3>工作班型設定</h3><p>自由新增／編輯／刪除教師管理頁面「套用預設班型」下拉選單中可選的班型，減少手動輸入時間</p></div>
+    </div>
+    <table class="dt"><thead><tr>
+      <th>班型（上下班時間）</th><th>說明</th><th style="width:160px">操作</th>
+    </tr></thead><tbody id="shift-preset-body"></tbody></table>
+    <div style="padding:14px 18px;border-top:1px solid var(--bd);display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <div class="field" style="margin:0"><label>上班時間</label><input type="time" id="sp-start" value="08:00" style="width:120px"></div>
+      <div class="field" style="margin:0"><label>下班時間</label><input type="time" id="sp-end" value="16:30" style="width:120px"></div>
+      <div class="field" style="margin:0"><label>說明（選填）</label><input id="sp-desc" placeholder="例：早班" style="width:140px"></div>
+      <button class="btn btn-primary" id="sp-save-btn" onclick="saveShiftPreset()">新增班型</button>
+      <button class="btn" onclick="cancelEditShiftPreset()">清空</button>
+    </div>
+  </div>
+
   <!-- Camp config -->
   <div class="card">
     <div class="ch">
@@ -351,7 +368,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
         <svg style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         一鍵清除整週班型
       </button>
-      <span class="hint" style="align-self:center">有固定教室的老師會自動排入自己的教室；托育時段依班型開始時間自動判斷廣場（7點班→1廣；8點班依樓層→2廣/3廣；16:30-18:00依樓層、18:00後→1廣）；彈性教師（無固定教室）才會用「備援教室」；16:30-17:30全教室開放可選（1/2/3廣可填2人，其他教室1人）；「整週」按鈕會套用週一～週五各自的班型設定（含週五當週特別設定）</span>
+      <span class="hint" style="align-self:center">有固定教室的老師會自動排入自己的教室；托育時段依班型開始時間自動判斷廣場（7點班→1廣；8點班依樓層→2廣/3廣；16:30-17:00優先帶回固定教室、17:00-18:00依樓層、18:00後→1廣）；彈性教師（無固定教室）才會用「備援教室」；16:30-17:30全教室開放可選（1/2/3廣可填2人，其他教室1人）；「整週」按鈕會套用週一～週五各自的班型設定（含週五當週特別設定）</span>
     </div>
     <div id="sc-alert" style="padding:0 18px"></div>
     <div style="overflow-x:auto;padding-bottom:4px">
@@ -622,12 +639,12 @@ const TYPE_STYLE={
 };
 const SLOT_TYPES=['托育','正課','托育/正課','午間','營隊','其他'];
 
-// Shift presets: [label, desc, startTime, endTime]
-const SHIFTS=[
-  {label:'07:00–16:30', desc:'早班',       start:'07:00', end:'16:30'},
-  {label:'08:00–16:30', desc:'一般早班',   start:'08:00', end:'16:30'},
-  {label:'09:00–16:30', desc:'一般班',     start:'09:00', end:'16:30'},
-  {label:'10:30–18:30', desc:'晚班',       start:'10:30', end:'18:30'},
+// Shift presets: default set, stored in DB so admins can add/edit/delete their own (ids match legacy indices 0-3 for backward compatibility)
+const DEF_SHIFT_PRESETS=[
+  {id:0, label:'07:00–16:30', desc:'早班',       start:'07:00', end:'16:30'},
+  {id:1, label:'08:00–16:30', desc:'一般早班',   start:'08:00', end:'16:30'},
+  {id:2, label:'09:00–16:30', desc:'一般班',     start:'09:00', end:'16:30'},
+  {id:3, label:'10:30–18:30', desc:'晚班',       start:'10:30', end:'18:30'},
 ];
 
 const DAYS=['週一','週二','週三','週四','週五'];
@@ -701,11 +718,13 @@ let DB={
   admins:   load('sch_admins', [{id:1,name:'hqsummer',password:'eliana'}]), // 管理者帳號（前端層級權限控管）
   adminLog: load('sch_admin_log', []), // 帳號異動紀錄（新增/改密碼/刪除），供跨校區留存查核
   dayNotes: load('sch_day_notes', []), // [{week,day,note}] 當日備註（例如併班說明）
+  shiftPresets: load('sch_shift_presets', DEF_SHIFT_PRESETS), // 教師工作班型預設（管理者可自訂新增）
   activeShift: parseInt(localStorage.getItem('sch_shift')||'-1'),
 };
 let tidSeq=Math.max(...DB.teachers.map(t=>t.id),0)+1;
 let ridSeq=Math.max(...DB.rooms.map(r=>r.id),0)+1;
 let sidSeq=Math.max(...DB.slots.map(s=>s.id),0)+1;
+let shiftPresetIdSeq=Math.max(-1,...DB.shiftPresets.map(p=>p.id))+1;
 
 const CAMP_YEAR=2026; // 暑期班年份，用來將週次標籤（如「第一週 8/3-8/7」）換算成星期一～五的實際日期
 // 從週次標籤解析出當週星期一的日期，回傳 Date；解析失敗回傳 null
@@ -796,7 +815,7 @@ function specialDateFor(week,day){
 function shiftFromCfg(d){
   if(!d || !d.mode) return null;
   if(d.mode==='preset'){
-    const p=SHIFTS[parseInt(d.presetId)];
+    const p=DB.shiftPresets.find(x=>String(x.id)===String(d.presetId));
     return p ? {start:p.start,end:p.end,label:p.label} : null;
   }
   if(d.mode==='custom'){
@@ -848,6 +867,7 @@ function save(){
   localStorage.setItem('sch_admins', JSON.stringify(DB.admins));
   localStorage.setItem('sch_admin_log', JSON.stringify(DB.adminLog));
   localStorage.setItem('sch_day_notes', JSON.stringify(DB.dayNotes));
+  localStorage.setItem('sch_shift_presets', JSON.stringify(DB.shiftPresets));
   localStorage.setItem('sch_shift', DB.activeShift);
 }
 
@@ -857,9 +877,9 @@ function calcHrs(s,e){
   return Math.round(((eh*60+em)-(sh*60+sm))/60*10)/10;
 }
 function timeToMin(t){const [h,m]=t.split(':').map(Number);return h*60+m;}
-function slotInShift(slot, shiftIdx){
-  if(shiftIdx<0||shiftIdx>=SHIFTS.length) return null;
-  const sh=SHIFTS[shiftIdx];
+function slotInShift(slot, shiftId){
+  const sh=DB.shiftPresets.find(x=>x.id===shiftId);
+  if(!sh) return null;
   const ss=timeToMin(slot.start), se=timeToMin(slot.end);
   const hs=timeToMin(sh.start),   he=timeToMin(sh.end);
   return ss>=hs && se<=he;
@@ -1146,7 +1166,7 @@ function renderDscFields(suffix,cfg){
   const wrap=document.getElementById(`t-day-${suffix}-fields`);
   if(mode==='preset'){
     wrap.innerHTML=`<select id="t-day-${suffix}-preset">
-      ${SHIFTS.map((sh,i)=>`<option value="${i}"${cfg&&String(cfg.presetId)===String(i)?' selected':''}>${sh.label}（${sh.desc}）</option>`).join('')}
+      ${DB.shiftPresets.map(sh=>`<option value="${sh.id}"${cfg&&String(cfg.presetId)===String(sh.id)?' selected':''}>${sh.label}${sh.desc?'（'+sh.desc+'）':''}</option>`).join('')}
     </select>`;
   }else if(mode==='custom'){
     const st=(cfg&&cfg.start)||'08:00', en=(cfg&&cfg.end)||'16:30';
@@ -1296,13 +1316,14 @@ function delR(id){
 let dragSrc=null;
 
 function renderSlots(){
+  renderShiftPresets();
   // Preset bar
   document.getElementById('preset-bar').innerHTML=
     `<span style="font-size:12px;font-weight:500;color:var(--tm);margin-right:4px">快速套用班型：</span>`+
-    SHIFTS.map((sh,i)=>`
-      <button class="preset-btn${DB.activeShift===i?' applied':''}" onclick="applyShift(${i})">
+    DB.shiftPresets.map(sh=>`
+      <button class="preset-btn${DB.activeShift===sh.id?' applied':''}" onclick="applyShift(${sh.id})">
         <span class="pl">${sh.label}</span>
-        <span class="ps">${sh.desc}${DB.activeShift===i?' ✓':''}</span>
+        <span class="ps">${sh.desc}${DB.activeShift===sh.id?' ✓':''}</span>
       </button>`).join('')+
     (DB.activeShift>=0?`<button class="btn btn-sm btn-ghost" onclick="clearShift()">清除班型</button>`:'');
 
@@ -1348,9 +1369,90 @@ function renderSlots(){
   renderCamps();
 }
 
-function applyShift(i){
-  DB.activeShift=i;save();renderSlots();
-  toast(`已套用班型：${SHIFTS[i].label}（${SHIFTS[i].desc}）`);
+let editingShiftPresetId=null;
+function shiftPresetUsageCount(id){
+  let n=0;
+  DB.teachers.forEach(t=>{
+    for(let d=0; d<4; d++){
+      const c=t.shiftG && t.shiftG[d];
+      if(c && c.mode==='preset' && String(c.presetId)===String(id)) n++;
+    }
+    const fri=t.shiftG && t.shiftG[4];
+    if(fri) Object.values(fri).forEach(c=>{ if(c && c.mode==='preset' && String(c.presetId)===String(id)) n++; });
+    if(t.dateShift) Object.values(t.dateShift).forEach(c=>{ if(c && c.mode==='preset' && String(c.presetId)===String(id)) n++; });
+  });
+  return n;
+}
+function renderShiftPresets(){
+  document.getElementById('shift-preset-body').innerHTML = DB.shiftPresets.length
+    ? DB.shiftPresets.map(sh=>{
+        const used=shiftPresetUsageCount(sh.id);
+        return `<tr${editingShiftPresetId===sh.id?' style="background:var(--acc-bg)"':''}>
+          <td style="font-weight:600">${sh.label}</td>
+          <td style="color:var(--ts)">${sh.desc||'—'}${used?` <span class="hint">（${used}處使用中）</span>`:''}</td>
+          <td style="text-align:right">
+            <button class="btn btn-sm" onclick="editShiftPreset(${sh.id})">編輯</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteShiftPreset(${sh.id})">刪除</button>
+          </td>
+        </tr>`;
+      }).join('')
+    : `<tr><td colspan="3" style="color:var(--tm)">尚無班型，請於下方新增</td></tr>`;
+}
+function saveShiftPreset(){
+  const start=document.getElementById('sp-start').value;
+  const end=document.getElementById('sp-end').value;
+  const desc=document.getElementById('sp-desc').value.trim();
+  if(!start||!end||calcHrs(start,end)<=0){toast('請確認上下班時間（下班時間需晚於上班時間）');return;}
+  const label=start+'–'+end;
+  if(editingShiftPresetId!==null){
+    const p=DB.shiftPresets.find(x=>x.id===editingShiftPresetId);
+    if(p){ p.start=start; p.end=end; p.desc=desc; p.label=label; }
+    toast('已更新班型');
+  }else{
+    DB.shiftPresets.push({id:shiftPresetIdSeq++, label, desc, start, end});
+    toast('已新增班型');
+  }
+  save();
+  cancelEditShiftPreset();
+}
+function editShiftPreset(id){
+  const p=DB.shiftPresets.find(x=>x.id===id);
+  if(!p) return;
+  editingShiftPresetId=id;
+  document.getElementById('sp-start').value=p.start;
+  document.getElementById('sp-end').value=p.end;
+  document.getElementById('sp-desc').value=p.desc||'';
+  document.getElementById('sp-save-btn').textContent='更新班型';
+  renderShiftPresets();
+}
+function cancelEditShiftPreset(){
+  editingShiftPresetId=null;
+  document.getElementById('sp-start').value='08:00';
+  document.getElementById('sp-end').value='16:30';
+  document.getElementById('sp-desc').value='';
+  document.getElementById('sp-save-btn').textContent='新增班型';
+  renderShiftPresets();
+}
+function deleteShiftPreset(id){
+  const p=DB.shiftPresets.find(x=>x.id===id);
+  if(!p) return;
+  const used=shiftPresetUsageCount(id);
+  const msg=used
+    ? `「${p.label}」目前有 ${used} 處教師班型設定正在使用，刪除後這些設定會變成「未指定」，確定要刪除嗎？`
+    : `確定要刪除班型「${p.label}」嗎？`;
+  if(!confirm(msg)) return;
+  DB.shiftPresets=DB.shiftPresets.filter(x=>x.id!==id);
+  if(editingShiftPresetId===id) cancelEditShiftPreset();
+  if(DB.activeShift===id){ DB.activeShift=-1; }
+  save();
+  renderSlots();
+  toast('已刪除班型');
+}
+
+function applyShift(id){
+  DB.activeShift=id;save();renderSlots();
+  const sh=DB.shiftPresets.find(x=>x.id===id);
+  toast(sh?`已套用班型：${sh.label}（${sh.desc}）`:'已套用班型');
 }
 function clearShift(){DB.activeShift=-1;save();renderSlots();toast('已清除班型篩選');}
 
@@ -1456,6 +1558,7 @@ function importData(e){
       if(d.roomStudents) DB.roomStudents=d.roomStudents;
       if(d.adminLog)  DB.adminLog=d.adminLog;
       if(d.dayNotes)  DB.dayNotes=d.dayNotes;
+      if(d.shiftPresets) DB.shiftPresets=d.shiftPresets;
       if(d.activeShift!==undefined) DB.activeShift=d.activeShift;
       save();showPage('teachers');toast('設定已匯入');
     }catch{alert('匯入失敗：格式不正確');}
@@ -1544,12 +1647,15 @@ function autoFillRoom(t,s,day,week,gs){
   if(isOutdoorMode(t,day,week)) return '戶外教學';
   const ss=timeToMin(s.start), se=timeToMin(s.end);
   const inMorningCare = ss>=timeToMin('07:00') && se<=timeToMin('09:00');
+  const in1630to1700  = ss>=timeToMin('16:30') && se<=timeToMin('17:00');
   const inEveningEarly= ss>=timeToMin('16:30') && se<=timeToMin('18:00');
   const inEveningLate = ss>=timeToMin('18:00') && se<=timeToMin('18:30');
   if(inMorningCare){
     const startMin=gs?timeToMin(gs.start):timeToMin('09:00');
     return startMin<timeToMin('08:00') ? '1廣' : floorPlaza(t.homeRoom);
   }
+  // 16:30-17:00 若教師仍有排班且有固定教室，優先帶回自己的教室，避免同時段多人擠進同一個廣場互相覆蓋
+  if(in1630to1700 && t.homeRoom) return t.homeRoom;
   if(inEveningEarly) return floorPlaza(t.homeRoom);
   if(inEveningLate) return '1廣';
   if(t.homeRoom) return t.homeRoom;
