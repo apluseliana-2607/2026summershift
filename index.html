@@ -481,6 +481,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
       <div id="ov-alert"></div>
       <div id="ov-notes"></div>
       <div id="ov-camp"></div>
+      <div id="ov-friday"></div>
       <div style="overflow-x:auto;padding-bottom:4px;background:#fff">
         <table class="dt" id="ov-table" style="min-width:900px">
           <thead><tr id="ov-thead"></tr></thead>
@@ -703,7 +704,6 @@ const DEF_ROOMS=[
   {id:13,name:'3E',   loc:'3F',      cap:30, type:'一般教室',  note:''},
   {id:14,name:'5B',   loc:'5F',      cap:25, type:'一般教室',  note:''},
   {id:15,name:'5D',   loc:'5F',      cap:25, type:'一般教室',  note:''},
-  {id:16,name:'櫃檯', loc:'1F',      cap:5,  type:'行政區',    note:''},
 ];
 
 const DEF_SLOTS=[
@@ -808,7 +808,11 @@ if(!DB.rooms.some(r=>r.type==='戶外')){
 }
 if(!DB.rooms.some(r=>r.name==='1B')){
   const newId=Math.max(0,...DB.rooms.map(r=>r.id))+1;
-  DB.rooms.push({id:newId,name:'1B',loc:'1F',cap:30,type:'一般教室',note:'8/3 07:00-09:00 特別開放，最多可排入2位教師'});
+  DB.rooms.push({id:newId,name:'1B',loc:'1F',cap:30,type:'一般教室',note:'8/3 07:30-09:00、16:30-18:30 特別開放，最多可排入2位教師'});
+  migrated=true;
+}
+if(DB.rooms.some(r=>r.name==='櫃檯'||r.name==='櫃台')){
+  DB.rooms=DB.rooms.filter(r=>r.name!=='櫃檯'&&r.name!=='櫃台');
   migrated=true;
 }
 DB.camps.forEach((c,w)=>{
@@ -1640,12 +1644,14 @@ function inCareWindow(s){
   const w2s=timeToMin('16:30'), w2e=timeToMin('18:30');
   return (st>=w1s&&en<=w1e)||(st>=w2s&&en<=w2e);
 }
-// 8/3 開放 1B 教室（07:00-09:00，最多2位教師）的特例判斷
-function is0803MorningExtra(r,s,day,week){
+// 8/3 開放 1B 教室（07:30-09:00、16:30-18:30，最多2位教師）的特例判斷
+function is0803_1B_Open(r,s,day,week){
   if(r.name!=='1B') return false;
   if(getDayDate(week,day)!=='8/3') return false;
   const ss=timeToMin(s.start), se=timeToMin(s.end);
-  return ss>=timeToMin('07:00') && se<=timeToMin('09:00');
+  const inMorning=ss>=timeToMin('07:30') && se<=timeToMin('09:00');
+  const inEvening=ss>=timeToMin('16:30') && se<=timeToMin('18:30');
+  return inMorning || inEvening;
 }
 // 每週 16:30-17:30：全教室開放可選（原本此時段只能選廣場）
 function isOpenEveningWindow(s){
@@ -1655,7 +1661,7 @@ function isOpenEveningWindow(s){
 // Is this teacher allowed to be assigned into this room for this slot?
 function roomEligible(t,r,s,day,week){
   if(isOutdoorRoom(r)) return true; // 戶外教學不受時段規則限制
-  if(day!==undefined && week!==undefined && is0803MorningExtra(r,s,day,week)) return true; // 8/3 1B 特例：任何教師皆可選
+  if(day!==undefined && week!==undefined && is0803_1B_Open(r,s,day,week)) return true; // 8/3 1B 特例：任何教師皆可選
   if(isOpenEveningWindow(s)){
     if(isPlazaName(r.name)) return true; // 16:30-17:30 廣場對所有教師開放
     return !t.homeRoom || t.homeRoom===r.name; // 16:30-17:30 教室仍依原本歸屬教師規則
@@ -1679,7 +1685,7 @@ function cellCapacity(r,s,day,week){
   if(isOutdoorRoom(r)) return 6; // 週五戶外教學：最多6位教師出隊
   const ss=timeToMin(s.start), se=timeToMin(s.end);
   const dateStr=getDayDate(week,day);
-  if(is0803MorningExtra(r,s,day,week)) return 2; // 8/3　1B 07:00-09:00
+  if(is0803_1B_Open(r,s,day,week)) return 2; // 8/3　1B 07:30-09:00、16:30-18:30
   const in1630to1800 = ss>=timeToMin('16:30') && se<=timeToMin('18:00'); // 8/3 加開範圍（含16:30-17:30）
   if(isOpenEveningWindow(s)){
     if(isPlazaName(r.name)){
@@ -1699,7 +1705,7 @@ function cellCapacity(r,s,day,week){
 // 這個 room+slot 儲存格是否適用（可排課），涵蓋 8/3 1B 的特例開放與 16:30-17:30 全教室開放
 function isApplicableCell(r,s,day,week){
   if(isOutdoorRoom(r)) return true;
-  if(is0803MorningExtra(r,s,day,week)) return true;
+  if(is0803_1B_Open(r,s,day,week)) return true;
   if(isOpenEveningWindow(s)) return true; // 16:30-17:30 全教室開放
   return inCareWindow(s) ? isPlazaName(r.name) : !isPlazaName(r.name);
 }
@@ -2053,6 +2059,20 @@ function dateForDay(camp,day){
   return (d.getMonth()+1)+'/'+d.getDate();
 }
 
+function campAbbrev(name){ return name ? name.charAt(0) : ''; }
+// 該教師在某週某天，依實際排班（DB.schedule）算出的最早上班～最晚下班時間區間
+function computeTeacherDayRange(week,day,teacherId){
+  const assigns=DB.schedule.filter(x=>x.week===week&&x.day===day&&x.teacherId===teacherId);
+  if(!assigns.length) return null;
+  let minStart=null, maxEnd=null;
+  assigns.forEach(a=>{
+    const s=DB.slots.find(x=>x.id===a.slotId);
+    if(!s) return;
+    if(minStart===null||timeToMin(s.start)<timeToMin(minStart)) minStart=s.start;
+    if(maxEnd===null||timeToMin(s.end)>timeToMin(maxEnd)) maxEnd=s.end;
+  });
+  return (minStart&&maxEnd) ? {start:minStart,end:maxEnd} : null;
+}
 function renderTeacherView(){
   const tsel=document.getElementById('tv-teacher');
   if(!tsel.options.length){
@@ -2098,7 +2118,7 @@ function renderTeacherView(){
     DB.slots.map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
   const rows=DAYS.map((dLabel,day)=>{
     const cells=DB.slots.map(s=>{
-      if(s.start==='14:00'&&s.end==='16:00'&&campLabel){
+      if(day<4 && s.start==='14:00'&&s.end==='16:00'&&campLabel){
         return `<td style="text-align:center;background:#DBEAFE;color:#1E40AF;font-weight:600;font-size:12px">📚 ${campLabel}</td>`;
       }
       const r=dayMap[day][s.id];
@@ -2106,7 +2126,12 @@ function renderTeacherView(){
       return `<td style="text-align:center;background:${t.color}1c;color:${t.color};font-weight:600;font-size:12px">${r.name}</td>`;
     }).join('');
     const dateStr=getDayDate(week,day);
-    return `<tr><td style="font-weight:600">${dLabel}${dateStr?`<br><span style="font-weight:400;color:var(--tm);font-size:10px">${dateStr}</span>`:''}</td>${cells}</tr>`;
+    let fridayRange='';
+    if(day===4){
+      const range=computeTeacherDayRange(week,4,tid);
+      if(range) fridayRange=`<br><span style="font-weight:400;color:#B45309;font-size:10px">🕐 ${range.start}–${range.end}</span>`;
+    }
+    return `<tr><td style="font-weight:600">${dLabel}${dateStr?`<br><span style="font-weight:400;color:var(--tm);font-size:10px">${dateStr}</span>`:''}${fridayRange}</td>${cells}</tr>`;
   }).join('');
 
   document.getElementById('tv-body').innerHTML=
@@ -2122,7 +2147,7 @@ function renderPersonalCampBlock(week, tid){
   if(!mine.length) return '';
   const items=mine.map(g=>`<div style="margin-top:4px">${escapeHtml(g.name)}</div>`).join('');
   return `<div style="margin-top:14px;padding:10px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:13px;color:#1E40AF">
-    <b>📚 14:00–16:00 你負責的營隊分組</b>
+    <b>📚 週一至週四 14:00–16:00 你負責的營隊分組</b>
     ${items}
   </div>`;
 }
@@ -2162,7 +2187,7 @@ function renderOverviewCampBlock(week){
     return `<div style="margin-top:4px"><b>${escapeHtml(g.name)}</b>－${names.length?escapeHtml(names.join('、')):'<span style="color:var(--tm)">未指定教師</span>'}</div>`;
   }).join('');
   return `<div style="margin-top:8px;padding:10px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:13px;color:#1E40AF">
-    <b>📚 14:00–16:00 下午營隊分組總覽</b>
+    <b>📚 週一至週四 14:00–16:00 下午營隊分組總覽</b>
     ${items}
   </div>`;
 }
@@ -2175,11 +2200,24 @@ function exportTeacherFilename(ext){
   const weekLabel=(DB.camps[week]?DB.camps[week].label:'').replace(/\s+/g,'');
   return `${t?t.name:'教師'}班表_${weekLabel}.${ext}`;
 }
+// 共用的高畫質、完整寬度截圖（避免 overflow-x:auto 造成右側被裁切，並提高解析度）
+function captureFullElement(el){
+  const w=Math.max(el.scrollWidth, el.offsetWidth);
+  const h=Math.max(el.scrollHeight, el.offsetHeight);
+  return html2canvas(el,{
+    backgroundColor:'#ffffff',
+    scale:3,
+    width:w,
+    height:h,
+    windowWidth:w,
+    windowHeight:h
+  });
+}
 function exportTeacherPNG(){
   const el=document.getElementById('tv-export-area');
   if(typeof html2canvas==='undefined'){toast('圖檔匯出元件載入失敗，請確認網路連線');return;}
   toast('圖檔產生中…');
-  html2canvas(el,{backgroundColor:'#ffffff',scale:2}).then(canvas=>{
+  captureFullElement(el).then(canvas=>{
     const a=document.createElement('a');
     a.href=canvas.toDataURL('image/png');
     a.download=exportTeacherFilename('png');
@@ -2191,7 +2229,7 @@ function exportTeacherPDF(){
   const el=document.getElementById('tv-export-area');
   if(typeof html2canvas==='undefined'||typeof window.jspdf==='undefined'){toast('PDF 匯出元件載入失敗，請確認網路連線');return;}
   toast('PDF 產生中…');
-  html2canvas(el,{backgroundColor:'#ffffff',scale:2}).then(canvas=>{
+  captureFullElement(el).then(canvas=>{
     const {jsPDF}=window.jspdf;
     const w=canvas.width, h=canvas.height;
     const pdf=new jsPDF({orientation:w>h?'landscape':'portrait',unit:'px',format:[w,h]});
@@ -2214,7 +2252,7 @@ function exportOverviewPNG(){
   const el=document.getElementById('ov-export-area');
   if(typeof html2canvas==='undefined'){toast('圖檔匯出元件載入失敗，請確認網路連線');return;}
   toast('圖檔產生中…');
-  html2canvas(el,{backgroundColor:'#ffffff',scale:2}).then(canvas=>{
+  captureFullElement(el).then(canvas=>{
     const a=document.createElement('a');
     a.href=canvas.toDataURL('image/png');
     a.download=exportOverviewFilename('png');
@@ -2226,7 +2264,7 @@ function exportOverviewPDF(){
   const el=document.getElementById('ov-export-area');
   if(typeof html2canvas==='undefined'||typeof window.jspdf==='undefined'){toast('PDF 匯出元件載入失敗，請確認網路連線');return;}
   toast('PDF 產生中…');
-  html2canvas(el,{backgroundColor:'#ffffff',scale:2}).then(canvas=>{
+  captureFullElement(el).then(canvas=>{
     const {jsPDF}=window.jspdf;
     const w=canvas.width, h=canvas.height;
     const pdf=new jsPDF({orientation:w>h?'landscape':'portrait',unit:'px',format:[w,h]});
@@ -2322,23 +2360,31 @@ function renderOverviewGrid(){
 
   document.getElementById('ov-notes').innerHTML=renderOverviewNotesBlock(week, day);
   document.getElementById('ov-camp').innerHTML=renderOverviewCampBlock(week);
+  document.getElementById('ov-friday').innerHTML = day===4 ? renderOverviewFridayRangeBlock(week) : '';
 
   document.getElementById('ov-thead').innerHTML=
     `<th style="min-width:90px">教師 ＼ 時段</th>`+
     DB.slots.map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
 
+  const weekCamps=(DB.camps[week]&&DB.camps[week].groups)||[];
   document.getElementById('ov-body').innerHTML=activeTeachers.map(t=>{
     const gs=getDayShift(t,day,week);
+    const myCamp = day<4 ? weekCamps.find(g=>(g.teacherIds||[]).includes(t.id)) : null;
     const cells=DB.slots.map(s=>{
       const found=DB.schedule.find(x=>x.week===week&&x.day===day&&x.teacherId===t.id&&x.slotId===s.id);
       const slotIdx=DB.slots.findIndex(x=>x.id===s.id);
       const isBlocked=t.blocked&&t.blocked.includes(slotIdx);
       const key=s.id+'_'+t.id;
       const isConflict=found&&conflicts[key]>1;
+      const isCampSlot = myCamp && s.start==='14:00' && s.end==='16:00';
       if(found){
         const r=DB.rooms.find(x=>x.id===found.roomId);
         const bg=isConflict?'var(--err-bg)':`${t.color}1c`;
-        return `<td style="text-align:center;background:${bg};color:${isConflict?'var(--err-t)':t.color};font-weight:600;font-size:11px">${r?r.name:'?'}</td>`;
+        const campTag=isCampSlot?`（${campAbbrev(myCamp.name)}）`:'';
+        return `<td style="text-align:center;background:${bg};color:${isConflict?'var(--err-t)':t.color};font-weight:600;font-size:11px">${r?r.name:'?'}${campTag}</td>`;
+      }
+      if(isCampSlot){
+        return `<td style="text-align:center;background:#DBEAFE;color:#1E40AF;font-weight:600;font-size:11px">（${campAbbrev(myCamp.name)}）</td>`;
       }
       if(isBlocked) return `<td style="text-align:center;background:var(--warn-bg);color:var(--tm);font-size:10px">封鎖</td>`;
       const outOfShift = gs && !slotInRange(s,gs.start,gs.end);
@@ -2347,6 +2393,20 @@ function renderOverviewGrid(){
     }).join('');
     return `<tr><td style="font-weight:500;white-space:nowrap"><span class="dot" style="background:${t.color}"></span> ${t.name}</td>${cells}</tr>`;
   }).join('');
+}
+// 週五工作區間總覽：依實際排班算出每位教師當天最早～最晚時段
+function renderOverviewFridayRangeBlock(week){
+  const activeTeachers=DB.teachers.filter(t=>t.active);
+  const items=activeTeachers.map(t=>{
+    const range=computeTeacherDayRange(week,4,t.id);
+    if(!range) return null;
+    return `<div style="margin-top:4px"><b>${escapeHtml(t.name)}</b>　${range.start}–${range.end}</div>`;
+  }).filter(Boolean);
+  if(!items.length) return '';
+  return `<div style="margin-top:8px;padding:10px 12px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;font-size:13px;color:#92400E">
+    <b>🕐 週五教師實際上班區間（依排班結果自動計算）</b>
+    <div style="display:flex;flex-wrap:wrap;gap:0 16px">${items.join('')}</div>
+  </div>`;
 }
 
 // ══════════════════════════════════════════════
