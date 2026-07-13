@@ -800,6 +800,11 @@ DB.teachers.forEach(t=>{
     migrated=true;
   }
   if(t.dateShift===undefined){ t.dateShift={}; migrated=true; }
+  if(!t._blockedIsId){
+    t.blocked=(t.blocked||[]).map(idx=>{ const s=DB.slots[idx]; return s?s.id:null; }).filter(id=>id!==null);
+    t._blockedIsId=true;
+    migrated=true;
+  }
 });
 if(!DB.rooms.some(r=>r.type==='戶外')){
   const newId=Math.max(0,...DB.rooms.map(r=>r.id))+1;
@@ -814,6 +819,19 @@ if(!DB.rooms.some(r=>r.name==='1B')){
 if(DB.rooms.some(r=>r.name==='櫃檯'||r.name==='櫃台')){
   DB.rooms=DB.rooms.filter(r=>r.name!=='櫃檯'&&r.name!=='櫃台');
   migrated=true;
+}
+if(!DB.slots.some(s=>s.start==='12:30'&&s.end==='13:00')){
+  const noonSlot=DB.slots.find(s=>s.start==='12:00'&&s.end==='14:00');
+  if(noonSlot){
+    noonSlot.end='12:30'; // 原本 12:00-14:00 縮小為 12:00-12:30，保留原本 id 避免既有資料失聯
+    const idx=DB.slots.indexOf(noonSlot);
+    DB.slots.splice(idx+1,0,
+      {id:sidSeq++, start:'12:30', end:'13:00', type:'午間', note:''},
+      {id:sidSeq++, start:'13:00', end:'13:30', type:'午間', note:''},
+      {id:sidSeq++, start:'13:30', end:'14:00', type:'午間', note:''}
+    );
+    migrated=true;
+  }
 }
 DB.camps.forEach((c,w)=>{
   if(c.label && /\d{1,2}\s*\/\s*\d{1,2}/.test(c.label) && !/-\s*\d{1,2}\s*\/\s*\d{1,2}/.test(c.label)){
@@ -1142,11 +1160,11 @@ function openTModal(id){
     `<div class="cs${c===selColor?' sel':''}" style="background:${c}" onclick="pickColor('${c}',this)"></div>`
   ).join('');
 
-  // Blocked slots grid using current DB slots
-  document.getElementById('t-blocked').innerHTML=DB.slots.map((s,i)=>{
+  // Blocked slots grid using current DB slots (以穩定的 slot.id 儲存，不受時段新增/排序影響)
+  document.getElementById('t-blocked').innerHTML=DB.slots.map(s=>{
     const hrs=calcHrs(s.start,s.end);
     const lbl=s.start+'～'+s.end;
-    return `<div class="st${blockedSel.includes(i)?' blk':''}" onclick="toggleBlk(${i},this)">${lbl}<br><span style="font-weight:400;font-size:9px">${hrs}h ${s.type}</span></div>`;
+    return `<div class="st${blockedSel.includes(s.id)?' blk':''}" onclick="toggleBlk(${s.id},this)">${lbl}<br><span style="font-weight:400;font-size:9px">${hrs}h ${s.type}</span></div>`;
   }).join('');
 
   openOv('ov-t');
@@ -1248,9 +1266,9 @@ function collectDateShiftG(){
   return out;
 }
 function pickColor(c,el){selColor=c;document.querySelectorAll('.cs').forEach(s=>s.classList.remove('sel'));el.classList.add('sel');}
-function toggleBlk(i,el){
-  if(blockedSel.includes(i)){blockedSel=blockedSel.filter(x=>x!==i);el.classList.remove('blk');}
-  else{blockedSel.push(i);el.classList.add('blk');}
+function toggleBlk(slotId,el){
+  if(blockedSel.includes(slotId)){blockedSel=blockedSel.filter(x=>x!==slotId);el.classList.remove('blk');}
+  else{blockedSel.push(slotId);el.classList.add('blk');}
 }
 function saveTeacher(){
   const name=document.getElementById('t-name').value.trim();
@@ -1852,14 +1870,13 @@ function renderSchedule(){
         return `<td style="padding:4px;background:var(--s1);text-align:center;color:var(--tm);font-size:11px">不適用</td>`;
       }
       const cap=cellCapacity(r,s,day,week);
-      const slotIdx=DB.slots.findIndex(x=>x.id===s.id);
 
       if(cap<=1){
         const tId=getAssign(week,day,s.id,r.id);
         const t=tId?DB.teachers.find(x=>x.id===tId):null;
         const key=s.id+'_'+tId;
         const isConflict=tId && conflicts[key]>1;
-        const isBlocked=t && t.blocked && t.blocked.includes(slotIdx);
+        const isBlocked=t && t.blocked && t.blocked.includes(s.id);
         let bg='';
         if(isConflict) bg='background:var(--err-bg)';
         else if(isBlocked) bg='background:var(--warn-bg)';
@@ -1890,7 +1907,7 @@ function renderSchedule(){
         if(!t) return '';
         const key=s.id+'_'+tid;
         const isConflict=conflicts[key]>1;
-        const isBlocked=t.blocked && t.blocked.includes(slotIdx);
+        const isBlocked=t.blocked && t.blocked.includes(s.id);
         const bg=isConflict?'var(--err-bg)':(isBlocked?'var(--warn-bg)':`${t.color}22`);
         const fg=isConflict?'var(--err-t)':t.color;
         return `<div style="display:flex;align-items:center;justify-content:space-between;gap:4px;background:${bg};color:${fg};border-radius:4px;padding:2px 5px;margin-top:2px;font-size:11px;font-weight:600">
@@ -1961,8 +1978,7 @@ function fillTeacherDay(teacherId,week,day,fallbackRoomId){
   const targetSlots=DB.slots.filter(s=>slotInRange(s,gs.start,gs.end));
   let filled=0, skippedBlocked=0, skippedNoRoom=0, skippedFull=0;
   targetSlots.forEach(s=>{
-    const slotIdx=DB.slots.findIndex(x=>x.id===s.id);
-    if(t.blocked && t.blocked.includes(slotIdx)){skippedBlocked++;return;}
+    if(t.blocked && t.blocked.includes(s.id)){skippedBlocked++;return;}
 
     let roomName=autoFillRoom(t,s,day,week,gs);
     if(!roomName && !t.homeRoom){
@@ -2372,8 +2388,7 @@ function renderOverviewGrid(){
     const myCamp = day<4 ? weekCamps.find(g=>(g.teacherIds||[]).includes(t.id)) : null;
     const cells=DB.slots.map(s=>{
       const found=DB.schedule.find(x=>x.week===week&&x.day===day&&x.teacherId===t.id&&x.slotId===s.id);
-      const slotIdx=DB.slots.findIndex(x=>x.id===s.id);
-      const isBlocked=t.blocked&&t.blocked.includes(slotIdx);
+      const isBlocked=t.blocked&&t.blocked.includes(s.id);
       const key=s.id+'_'+t.id;
       const isConflict=found&&conflicts[key]>1;
       const isCampSlot = myCamp && s.start==='14:00' && s.end==='16:00';
