@@ -285,7 +285,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
       </button>
     </div>
     <table class="dt"><thead><tr>
-      <th>教室</th><th>位置</th><th>容納人數</th><th>類型</th><th>使用教師</th><th>備注</th><th style="width:100px">操作</th>
+      <th>教室</th><th>位置</th><th>分機</th><th>容納人數</th><th>類型</th><th>使用教師</th><th>備注</th><th style="width:100px">操作</th>
     </tr></thead><tbody id="r-body"></tbody></table>
   </div>
 </div>
@@ -480,6 +480,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
       <div id="ov-export-title" style="font-size:14px;font-weight:600;margin-bottom:8px"></div>
       <div id="ov-alert"></div>
       <div id="ov-notes"></div>
+      <div id="ov-camp"></div>
       <div style="overflow-x:auto;padding-bottom:4px;background:#fff">
         <table class="dt" id="ov-table" style="min-width:900px">
           <thead><tr id="ov-thead"></tr></thead>
@@ -597,6 +598,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
   <div class="fg">
     <div class="field"><label>教室名稱 *</label><input id="r-name" placeholder="例：1A、2廣、3廣"></div>
     <div class="field"><label>樓層 / 位置</label><input id="r-loc" placeholder="例：1F、2F 廣場"></div>
+    <div class="field"><label>教室分機</label><input id="r-ext" placeholder="例：1234"></div>
     <div class="field"><label>容納人數</label><input type="number" id="r-cap" value="30" min="1" max="500"></div>
     <div class="field"><label>類型</label>
       <select id="r-type">
@@ -734,7 +736,6 @@ let DB={
   slots:    load('sch_s', DEF_SLOTS),
   camps:    load('sch_c', DEF_CAMPS),
   schedule: load('sch_sc', []),
-  roomStudents: load('sch_rs', []), // [{week,day,slotId,roomId,count}] — 學生人數，獨立於教師指派
   admins:   load('sch_admins', [{id:1,name:'hqsummer',password:'eliana'}]), // 管理者帳號（前端層級權限控管）
   adminLog: load('sch_admin_log', []), // 帳號異動紀錄（新增/改密碼/刪除），供跨校區留存查核
   dayNotes: load('sch_day_notes', []), // [{week,day,note}] 當日備註（例如併班說明）
@@ -819,6 +820,18 @@ DB.camps.forEach((c,w)=>{
       migrated=true;
     }
   }
+  if(c.groups && c.groups.some(g=>typeof g==='string')){
+    c.groups=c.groups.map(g=>typeof g==='string'?{name:g,teacherIds:[]}:g);
+    migrated=true;
+  }
+  if(c.groups && c.groups.some(g=>g.teacherIds===undefined)){
+    c.groups=c.groups.map(g=>{
+      if(g.teacherIds!==undefined) return g;
+      const ids = (g.teacherId!==undefined && g.teacherId!==null) ? [g.teacherId] : [];
+      return {name:g.name, teacherIds:ids};
+    });
+    migrated=true;
+  }
 });
 if(migrated) save();
 
@@ -883,7 +896,6 @@ function save(){
   localStorage.setItem('sch_s', JSON.stringify(DB.slots));
   localStorage.setItem('sch_c', JSON.stringify(DB.camps));
   localStorage.setItem('sch_sc', JSON.stringify(DB.schedule));
-  localStorage.setItem('sch_rs', JSON.stringify(DB.roomStudents));
   localStorage.setItem('sch_admins', JSON.stringify(DB.admins));
   localStorage.setItem('sch_admin_log', JSON.stringify(DB.adminLog));
   localStorage.setItem('sch_day_notes', JSON.stringify(DB.dayNotes));
@@ -1287,6 +1299,7 @@ function renderRooms(){
     return `<tr>
     <td style="font-weight:500">${r.name}</td>
     <td style="color:var(--ts)">${r.loc}</td>
+    <td style="color:var(--ts)">${r.ext?'☎ '+r.ext:'—'}</td>
     <td>
       <div style="display:flex;align-items:center;gap:8px">
         <div style="width:60px;height:4px;background:var(--s1);border-radius:2px;overflow:hidden">
@@ -1313,6 +1326,7 @@ function openRModal(id){
   document.getElementById('r-modal-title').textContent=id?'編輯教室':'新增教室';
   document.getElementById('r-name').value=r?.name||'';
   document.getElementById('r-loc').value=r?.loc||'';
+  document.getElementById('r-ext').value=r?.ext||'';
   document.getElementById('r-cap').value=r?.cap||30;
   document.getElementById('r-type').value=r?.type||'一般教室';
   document.getElementById('r-note').value=r?.note||'';
@@ -1322,6 +1336,7 @@ function saveRoom(){
   const name=document.getElementById('r-name').value.trim();
   if(!name){toast('請填入教室名稱');return;}
   const obj={id:editRId||ridSeq++,name,loc:document.getElementById('r-loc').value.trim(),
+    ext:document.getElementById('r-ext').value.trim(),
     cap:parseInt(document.getElementById('r-cap').value)||30,
     type:document.getElementById('r-type').value,note:document.getElementById('r-note').value.trim()};
   if(editRId){const i=DB.rooms.findIndex(r=>r.id===editRId);if(i>-1)DB.rooms[i]=obj;}
@@ -1533,17 +1548,40 @@ function renderCamps(){
     <div class="tp${wi===0?' active':''}" id="cp${wi}">
       <div class="alert alert-warn" style="margin-bottom:12px">
         <svg style="width:14px;height:14px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        ${c.label}的下午時段共 <b>${c.groups.length}</b> 個營隊分組
+        ${c.label}的下午時段共 <b>${c.groups.length}</b> 個營隊分組；同一位教師同一週只能屬於一個分組
       </div>
       ${c.groups.map((g,gi)=>`
-        <div class="wsr">
+        <div class="wsr" style="align-items:flex-start">
           <div class="wsl">分組 ${gi+1}</div>
-          <div class="wsi"><input type="text" value="${g}" placeholder="營隊名稱"
-            oninput="DB.camps[${wi}].groups[${gi}]=this.value"></div>
+          <div style="flex:1">
+            <input type="text" value="${g.name}" placeholder="營隊名稱" style="width:100%;margin-bottom:6px"
+              oninput="DB.camps[${wi}].groups[${gi}].name=this.value">
+            <div style="display:flex;flex-wrap:wrap;gap:5px">
+              ${DB.teachers.map(t=>{
+                const checked=(g.teacherIds||[]).includes(t.id);
+                return `<button type="button" class="chip" style="cursor:pointer;border:1px solid ${checked?t.color:'var(--bd)'};background:${checked?t.color+'22':'transparent'};color:${checked?t.color:'var(--ts)'}"
+                  onclick="toggleCampTeacher(${wi},${gi},${t.id})">${checked?'✓ ':''}${t.name}</button>`;
+              }).join('')}
+            </div>
+          </div>
           <button class="btn btn-sm btn-danger" style="margin-left:8px" onclick="rmCamp(${wi},${gi})">移除</button>
         </div>`).join('')}
       <button class="btn" style="margin-top:12px" onclick="addCamp(${wi})">＋ 新增分組</button>
     </div>`).join('');
+}
+function toggleCampTeacher(wi,gi,tid){
+  const week=DB.camps[wi];
+  const g=week.groups[gi];
+  g.teacherIds=g.teacherIds||[];
+  if(g.teacherIds.includes(tid)){
+    g.teacherIds=g.teacherIds.filter(id=>id!==tid);
+  }else{
+    // 互斥：同一週內，這位教師先從其他分組移除，再加入目前分組
+    week.groups.forEach((og,idx)=>{ if(idx!==gi) og.teacherIds=(og.teacherIds||[]).filter(id=>id!==tid); });
+    g.teacherIds.push(tid);
+  }
+  save();renderSlots();
+  setTimeout(()=>{const tabs=document.querySelectorAll('.ctab');showCampTab(wi,tabs[wi]);},0);
 }
 function showCampTab(i,el){
   document.querySelectorAll('.ctab').forEach(t=>t.classList.remove('active'));
@@ -1551,7 +1589,7 @@ function showCampTab(i,el){
   el.classList.add('active');
   document.getElementById('cp'+i).classList.add('active');
 }
-function addCamp(wi){DB.camps[wi].groups.push('新營隊');save();renderSlots();setTimeout(()=>{const tabs=document.querySelectorAll('.ctab');showCampTab(wi,tabs[wi]);},0);toast('已新增分組');}
+function addCamp(wi){DB.camps[wi].groups.push({name:'新營隊',teacherIds:[]});save();renderSlots();setTimeout(()=>{const tabs=document.querySelectorAll('.ctab');showCampTab(wi,tabs[wi]);},0);toast('已新增分組');}
 function rmCamp(wi,gi){
   if(DB.camps[wi].groups.length<=1){toast('至少保留一個分組');return;}
   DB.camps[wi].groups.splice(gi,1);save();renderSlots();setTimeout(()=>{const tabs=document.querySelectorAll('.ctab');showCampTab(wi,tabs[wi]);},0);toast('已移除分組');
@@ -1579,7 +1617,6 @@ function importData(e){
       if(d.slots)    DB.slots=d.slots;
       if(d.camps)    DB.camps=d.camps;
       if(d.schedule) DB.schedule=d.schedule;
-      if(d.roomStudents) DB.roomStudents=d.roomStudents;
       if(d.adminLog)  DB.adminLog=d.adminLog;
       if(d.dayNotes)  DB.dayNotes=d.dayNotes;
       if(d.shiftPresets) DB.shiftPresets=d.shiftPresets;
@@ -1768,16 +1805,6 @@ function getDayRoomNotes(week,day,roomIdSet){
     .map(x=>{ const r=DB.rooms.find(rr=>rr.id===x.roomId); return {roomName:r?r.name:'（教室已刪除）', note:x.note}; })
     .filter(n=>n.roomName!=='（教室已刪除）');
 }
-function getRoomStudents(week,day,slotId,roomId){
-  const a=DB.roomStudents.find(x=>x.week===week&&x.day===day&&x.slotId===slotId&&x.roomId===roomId);
-  return a?a.count:'';
-}
-function setRoomStudents(week,day,slotId,roomId,val){
-  DB.roomStudents=DB.roomStudents.filter(x=>!(x.week===week&&x.day===day&&x.slotId===slotId&&x.roomId===roomId));
-  const count=parseInt(val);
-  if(val!==''&&!isNaN(count)&&count>=0) DB.roomStudents.push({week,day,slotId,roomId,count});
-  save();renderSchedule();
-}
 // counts how many rooms each teacher is assigned to per slot, for this week/day
 function scConflictMap(week,day){
   const m={};
@@ -1801,13 +1828,8 @@ function renderSchedule(){
     `<th style="min-width:140px">備註</th>`;
 
   const conflictCount=Object.values(conflicts).filter(v=>v>1).length;
-  const overCount=DB.roomStudents.filter(x=>x.week===week&&x.day===day).filter(x=>{
-    const r=DB.rooms.find(rr=>rr.id===x.roomId);
-    return r && !isOutdoorRoom(r) && x.count>r.cap;
-  }).length;
   document.getElementById('sc-alert').innerHTML=
-    (conflictCount?`<div class="alert alert-warn" style="margin-top:12px">⚠ 偵測到 ${conflictCount} 處教師衝突（同一教師同時段被排入多間教室），請檢查標紅的儲存格</div>`:'')+
-    (overCount?`<div class="alert" style="margin-top:8px;background:var(--err-bg);color:var(--err-t);border:1px solid #fca5a5">⚠ 偵測到 ${overCount} 處教室超收（學生人數超過容納上限），請檢查標紅框的儲存格</div>`:'');
+    (conflictCount?`<div class="alert alert-warn" style="margin-top:12px">⚠ 偵測到 ${conflictCount} 處教師衝突（同一教師同時段被排入多間教室），請檢查標紅的儲存格</div>`:'');
 
   const visibleRooms=DB.rooms.filter(r=>{
     if(isOutdoorRoom(r)) return day===4;
@@ -1825,11 +1847,6 @@ function renderSchedule(){
       }
       const cap=cellCapacity(r,s,day,week);
       const slotIdx=DB.slots.findIndex(x=>x.id===s.id);
-      const cnt=getRoomStudents(week,day,s.id,r.id);
-      const over=!isOutdoorRoom(r)&&cnt!==''&&cnt>r.cap;
-      const studentInput=`<input type="number" min="0" class="se" style="width:100%;margin-top:2px;${over?'border-color:var(--err);color:var(--err-t)':''}"
-          placeholder="學生人數" value="${cnt}" onchange="setRoomStudents(${week},${day},${s.id},${r.id},this.value)">
-        ${over?`<div style="font-size:10px;color:var(--err-t);margin-top:2px">⚠ 超收 ${cnt}/${r.cap}</div>`:''}`;
 
       if(cap<=1){
         const tId=getAssign(week,day,s.id,r.id);
@@ -1855,7 +1872,6 @@ function renderSchedule(){
           <select class="se" style="width:100%;min-width:84px" onchange="setAssign(${week},${day},${s.id},${r.id},this.value)">
             ${options}
           </select>
-          ${studentInput}
           ${isConflict?'<div style="font-size:10px;color:var(--err-t);margin-top:2px">⚠ 衝突</div>':''}
           ${isBlocked&&!isConflict?'<div style="font-size:10px;color:var(--warn-t);margin-top:2px">⚠ 封鎖時段</div>':''}
         </td>`;
@@ -1893,7 +1909,6 @@ function renderSchedule(){
       return `<td style="padding:4px">
         ${chips}
         ${addControl}
-        ${studentInput}
       </td>`;
     }).join('');
     const noteVal=getRoomNote(week,day,r.id);
@@ -1901,7 +1916,8 @@ function renderSchedule(){
       <textarea class="se" rows="2" style="width:100%;resize:vertical;font-family:inherit" placeholder="併班備註"
         onchange="setRoomNote(${week},${day},${r.id},this.value)">${escapeHtml(noteVal)}</textarea>
     </td>`;
-    return `<tr><td style="font-weight:500;white-space:nowrap">${r.name}${isOutdoorRoom(r)?' 🌳':''}</td>${cells}${noteCell}</tr>`;
+    const extLabel=r.ext?`<div style="font-size:10px;color:var(--tm);font-weight:400">☎ ${escapeHtml(r.ext)}</div>`:'';
+    return `<tr><td style="font-weight:500;white-space:nowrap">${r.name}${isOutdoorRoom(r)?' 🌳':''}${extLabel}</td>${cells}${noteCell}</tr>`;
   }).join('');
 }
 
@@ -2076,10 +2092,15 @@ function renderTeacherView(){
     `<div class="scard"><div class="num" style="font-size:15px;padding-top:6px">${statusBadge}</div><div class="lbl">狀態</div></div>`;
 
   // Table-grid: rows = 星期, columns = 時段
+  const myCampGroups=(DB.camps[week]&&DB.camps[week].groups||[]).filter(g=>(g.teacherIds||[]).includes(tid));
+  const campLabel=myCampGroups.map(g=>g.name).join('、');
   const thead=`<th style="min-width:70px">星期 ＼ 時段</th>`+
     DB.slots.map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
   const rows=DAYS.map((dLabel,day)=>{
     const cells=DB.slots.map(s=>{
+      if(s.start==='14:00'&&s.end==='16:00'&&campLabel){
+        return `<td style="text-align:center;background:#DBEAFE;color:#1E40AF;font-weight:600;font-size:12px">📚 ${campLabel}</td>`;
+      }
       const r=dayMap[day][s.id];
       if(!r) return `<td style="text-align:center;color:var(--tm);font-size:11px">－</td>`;
       return `<td style="text-align:center;background:${t.color}1c;color:${t.color};font-weight:600;font-size:12px">${r.name}</td>`;
@@ -2090,7 +2111,20 @@ function renderTeacherView(){
 
   document.getElementById('tv-body').innerHTML=
     `<div style="overflow-x:auto"><table class="dt" style="min-width:900px"><thead><tr>${thead}</tr></thead><tbody>${rows}</tbody></table></div>`
+    + renderPersonalCampBlock(week, tid)
     + renderPersonalNotesBlock(week, dayMap);
+}
+// 14:00-16:00 下午營隊分組：只顯示自己被指派負責的分組
+function renderPersonalCampBlock(week, tid){
+  const c=DB.camps[week];
+  if(!c) return '';
+  const mine=(c.groups||[]).filter(g=>(g.teacherIds||[]).includes(tid));
+  if(!mine.length) return '';
+  const items=mine.map(g=>`<div style="margin-top:4px">${escapeHtml(g.name)}</div>`).join('');
+  return `<div style="margin-top:14px;padding:10px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:13px;color:#1E40AF">
+    <b>📚 14:00–16:00 你負責的營隊分組</b>
+    ${items}
+  </div>`;
 }
 // 個人課表備註：只顯示「當天自己有被排入的教室」相關備註
 function renderPersonalNotesBlock(week, dayMap){
@@ -2116,6 +2150,19 @@ function renderOverviewNotesBlock(week, day){
   const items=notes.map(n=>`<div style="margin-top:4px"><b>${escapeHtml(n.roomName)}：</b>${escapeHtml(n.note)}</div>`).join('');
   return `<div style="margin-top:8px;padding:10px 12px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;font-size:13px;color:#92400E">
     <b>📝 ${DAYS[day]}併班總覽</b>
+    ${items}
+  </div>`;
+}
+// 14:00-16:00 下午營隊分組總覽：顯示整週所有分組與負責教師
+function renderOverviewCampBlock(week){
+  const c=DB.camps[week];
+  if(!c || !c.groups || !c.groups.length) return '';
+  const items=c.groups.map(g=>{
+    const names=(g.teacherIds||[]).map(id=>{const t=DB.teachers.find(x=>x.id===id);return t?t.name:null;}).filter(Boolean);
+    return `<div style="margin-top:4px"><b>${escapeHtml(g.name)}</b>－${names.length?escapeHtml(names.join('、')):'<span style="color:var(--tm)">未指定教師</span>'}</div>`;
+  }).join('');
+  return `<div style="margin-top:8px;padding:10px 12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;font-size:13px;color:#1E40AF">
+    <b>📚 14:00–16:00 下午營隊分組總覽</b>
     ${items}
   </div>`;
 }
@@ -2274,6 +2321,7 @@ function renderOverviewGrid(){
     `<div class="alert alert-warn" style="margin-top:12px">⚠ ${DAYS[day]}偵測到 ${conflictCount} 處教師衝突，請至「排班編輯」頁面確認</div>`:'';
 
   document.getElementById('ov-notes').innerHTML=renderOverviewNotesBlock(week, day);
+  document.getElementById('ov-camp').innerHTML=renderOverviewCampBlock(week);
 
   document.getElementById('ov-thead').innerHTML=
     `<th style="min-width:90px">教師 ＼ 時段</th>`+
