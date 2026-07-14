@@ -300,6 +300,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     </div>
     <!-- Preset buttons -->
     <div class="presets" id="preset-bar"></div>
+    <!-- 平日／週五 時段組切換 -->
+    <div class="ctabs" id="slot-group-tabs" style="padding:0 18px">
+      <div class="ctab active" id="sgt-wd" onclick="setSlotGroupTab('wd',this)">平日（週一～週四）</div>
+      <div class="ctab" id="sgt-fri" onclick="setSlotGroupTab('fri',this)">週五</div>
+    </div>
     <!-- Slot table -->
     <table class="dt">
       <thead><tr>
@@ -352,14 +357,22 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
     <div class="ch">
       <div><h3>週次 / 星期選擇</h3><p>選擇要編輯的週次與星期，切換後下方表格會自動更新</p></div>
     </div>
+    <div style="padding:14px 18px 0;display:flex;gap:8px">
+      <button class="btn btn-sm" id="sc-mode-wd" onclick="setScMode('weekday')">☀ 平日（週一～週四）</button>
+      <button class="btn btn-sm" id="sc-mode-fri" onclick="setScMode('friday')">📅 週五</button>
+    </div>
     <div style="padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;gap:20px;flex-wrap:wrap;align-items:flex-end">
-      <div class="field" style="min-width:160px">
+      <div class="field" style="min-width:160px" id="sc-week-wrap">
         <label>週次</label>
         <select id="sc-week" onchange="updateFillControls();renderSchedule()"></select>
       </div>
-      <div class="field" style="min-width:260px">
+      <div class="field" style="min-width:260px" id="sc-daytabs-wrap">
         <label>星期</label>
         <div class="ctabs" id="sc-daytabs" style="border-bottom:none"></div>
+      </div>
+      <div class="field" style="min-width:200px;display:none" id="sc-fridate-wrap">
+        <label>週五日期</label>
+        <select id="sc-fridate" onchange="setScFriDate(this.value)"></select>
       </div>
     </div>
     <div style="padding:14px 18px;border-bottom:1px solid var(--bd);display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;background:var(--s0)">
@@ -481,11 +494,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Ar
       <div id="ov-alert"></div>
       <div id="ov-notes"></div>
       <div id="ov-camp"></div>
-      <div id="ov-friday"></div>
+      <div style="font-weight:600;margin:4px 0 6px">平日班表（週一～週四）</div>
       <div style="overflow-x:auto;padding-bottom:4px;background:#fff">
         <table class="dt" id="ov-table" style="min-width:900px">
           <thead><tr id="ov-thead"></tr></thead>
           <tbody id="ov-body"></tbody>
+        </table>
+      </div>
+      <div id="ov-friday-title" style="font-weight:600;margin:16px 0 6px"></div>
+      <div id="ov-friday"></div>
+      <div style="overflow-x:auto;padding-bottom:4px;background:#fff">
+        <table class="dt" id="ov-table-fri" style="min-width:900px">
+          <thead><tr id="ov-thead-fri"></tr></thead>
+          <tbody id="ov-body-fri"></tbody>
         </table>
       </div>
     </div>
@@ -707,19 +728,35 @@ const DEF_ROOMS=[
 ];
 
 const DEF_SLOTS=[
-  {id:1, start:'07:00',end:'07:30',type:'托育',      note:''},
-  {id:2, start:'07:30',end:'08:00',type:'托育',      note:''},
-  {id:3, start:'08:00',end:'08:30',type:'托育/正課', note:''},
-  {id:4, start:'08:30',end:'09:00',type:'正課',      note:''},
-  {id:5, start:'09:00',end:'10:30',type:'正課',      note:''},
-  {id:6, start:'10:30',end:'12:00',type:'正課',      note:''},
-  {id:7, start:'12:00',end:'14:00',type:'午間',      note:''},
-  {id:8, start:'14:00',end:'16:00',type:'營隊',      note:'依週次設定分組'},
-  {id:9, start:'16:00',end:'16:30',type:'正課',      note:''},
-  {id:10,start:'16:30',end:'17:00',type:'正課',      note:''},
-  {id:11,start:'17:00',end:'17:30',type:'托育',      note:''},
-  {id:12,start:'17:30',end:'18:00',type:'托育',      note:''},
-  {id:13,start:'18:00',end:'18:30',type:'托育',      note:''},
+  {id:1, start:'07:00',end:'07:30',type:'托育',      note:'', group:'wd'},
+  {id:2, start:'07:30',end:'08:00',type:'托育',      note:'', group:'wd'},
+  {id:3, start:'08:00',end:'08:30',type:'托育/正課', note:'', group:'wd'},
+  {id:4, start:'08:30',end:'09:00',type:'正課',      note:'', group:'wd'},
+  {id:5, start:'09:00',end:'10:30',type:'正課',      note:'', group:'wd'},
+  {id:6, start:'10:30',end:'12:00',type:'正課',      note:'', group:'wd'},
+  {id:7, start:'12:00',end:'14:00',type:'午間',      note:'', group:'wd'},
+  {id:8, start:'14:00',end:'16:00',type:'營隊',      note:'依週次設定分組', group:'wd'},
+  {id:9, start:'16:00',end:'16:30',type:'正課',      note:'', group:'wd'},
+  {id:10,start:'16:30',end:'17:00',type:'正課',      note:'', group:'wd'},
+  {id:11,start:'17:00',end:'17:30',type:'托育',      note:'', group:'wd'},
+  {id:12,start:'17:30',end:'18:00',type:'托育',      note:'', group:'wd'},
+  {id:13,start:'18:00',end:'18:30',type:'托育',      note:'', group:'wd'},
+];
+// 週五時段預設值（單獨一組，時段可依需要自由拆更細）；沿用平日的時間骨架作為起點，管理者可再自行調整
+const DEF_SLOTS_FRI=[
+  {id:101,start:'07:00',end:'07:30',type:'托育',      note:'', group:'fri'},
+  {id:102,start:'07:30',end:'08:00',type:'托育',      note:'', group:'fri'},
+  {id:103,start:'08:00',end:'08:30',type:'托育/正課', note:'', group:'fri'},
+  {id:104,start:'08:30',end:'09:00',type:'正課',      note:'', group:'fri'},
+  {id:105,start:'09:00',end:'10:30',type:'正課',      note:'', group:'fri'},
+  {id:106,start:'10:30',end:'12:00',type:'正課',      note:'', group:'fri'},
+  {id:107,start:'12:00',end:'14:00',type:'午間',      note:'', group:'fri'},
+  {id:108,start:'14:00',end:'16:00',type:'其他',      note:'', group:'fri'},
+  {id:109,start:'16:00',end:'16:30',type:'正課',      note:'', group:'fri'},
+  {id:110,start:'16:30',end:'17:00',type:'正課',      note:'', group:'fri'},
+  {id:111,start:'17:00',end:'17:30',type:'托育',      note:'', group:'fri'},
+  {id:112,start:'17:30',end:'18:00',type:'托育',      note:'', group:'fri'},
+  {id:113,start:'18:00',end:'18:30',type:'托育',      note:'', group:'fri'},
 ];
 
 const DEF_CAMPS=[
@@ -733,7 +770,7 @@ function load(key,def){return JSON.parse(localStorage.getItem(key)||'null')||JSO
 let DB={
   teachers: load('sch_t', DEF_TEACHERS),
   rooms:    load('sch_r', DEF_ROOMS),
-  slots:    load('sch_s', DEF_SLOTS),
+  slots:    load('sch_s', [...DEF_SLOTS, ...DEF_SLOTS_FRI]),
   camps:    load('sch_c', DEF_CAMPS),
   schedule: load('sch_sc', []),
   admins:   load('sch_admins', [{id:1,name:'hqsummer',password:'eliana'}]), // 管理者帳號（前端層級權限控管）
@@ -768,6 +805,8 @@ function getDayDate(week,day){
 const HOMEROOM_MAP={'Freya':'3A','Grace':'3B','Anne':'3D','Brycen':'3E','Susanna':'2B','Peggy':'2A',
   'Eliana':'2D','Michelle':'3C','Ian':'2C','Irene':'1A','Ula':'5D','Jacob':'5B'};
 function isOutdoorRoom(r){ return r && r.type==='戶外'; }
+// 依「星期」回傳對應的時段清單：週五(day=4) 用獨立的週五時段組，週一～週四共用平日時段組
+function slotsForDay(day){ return DB.slots.filter(s=>(day===4)?s.group==='fri':s.group!=='fri'); }
 
 let migrated=false;
 DB.teachers.forEach(t=>{
@@ -854,7 +893,21 @@ DB.camps.forEach((c,w)=>{
     });
     migrated=true;
   }
+  if(c.groups && c.groups.some(g=>g.abbrev===undefined)){
+    c.groups=c.groups.map(g=>g.abbrev!==undefined?g:{...g, abbrev:(g.name||'').charAt(0)});
+    migrated=true;
+  }
 });
+// 舊資料的時段沒有 group 欄位（平日／週五），一律視為「平日」
+if(DB.slots.some(s=>s.group===undefined)){
+  DB.slots.forEach(s=>{ if(s.group===undefined) s.group='wd'; });
+  migrated=true;
+}
+// 若目前完全沒有週五專屬時段（例如舊資料庫），自動帶入一組週五預設時段，供管理者再自行調整
+if(!DB.slots.some(s=>s.group==='fri')){
+  DB.slots.push(...JSON.parse(JSON.stringify(DEF_SLOTS_FRI)));
+  migrated=true;
+}
 if(migrated) save();
 
 const OUTDOOR_SHIFT={start:'08:30',end:'16:30'};
@@ -1388,8 +1441,9 @@ function renderSlots(){
       </button>`).join('')+
     (DB.activeShift>=0?`<button class="btn btn-sm btn-ghost" onclick="clearShift()">清除班型</button>`:'');
 
-  // Slot rows
-  document.getElementById('s-body').innerHTML=DB.slots.map((s,i)=>{
+  // Slot rows（依目前選擇的 平日／週五 分頁篩選）
+  const groupSlots=DB.slots.filter(s=>slotGroupTab==='fri'?s.group==='fri':s.group!=='fri');
+  document.getElementById('s-body').innerHTML=groupSlots.map((s,i)=>{
     const hrs=calcHrs(s.start,s.end);
     const ts=TYPE_STYLE[s.type]||TYPE_STYLE['其他'];
     const inShift=DB.activeShift>=0?slotInShift(s,DB.activeShift):null;
@@ -1428,6 +1482,14 @@ function renderSlots(){
   }).join('');
 
   renderCamps();
+}
+
+let slotGroupTab='wd';
+function setSlotGroupTab(g,el){
+  slotGroupTab=g;
+  document.querySelectorAll('#slot-group-tabs .ctab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  renderSlots();
 }
 
 let editingShiftPresetId=null;
@@ -1525,13 +1587,17 @@ function delSlot(id){
   DB.slots=DB.slots.filter(x=>x.id!==id);save();renderSlots();toast('已刪除時段');
 }
 function resetSlots(){
-  if(!confirm('還原為預設時段？目前設定將清除。')) return;
-  DB.slots=JSON.parse(JSON.stringify(DEF_SLOTS));sidSeq=14;save();renderSlots();toast('已還原預設時段');
+  const label=slotGroupTab==='fri'?'週五':'平日（週一～週四）';
+  if(!confirm(`還原「${label}」為預設時段？此分頁目前設定將清除（不影響另一分頁）。`)) return;
+  const keep=DB.slots.filter(s=>slotGroupTab==='fri'?s.group!=='fri':s.group==='fri');
+  const fresh=JSON.parse(JSON.stringify(slotGroupTab==='fri'?DEF_SLOTS_FRI:DEF_SLOTS));
+  DB.slots=[...keep,...fresh];
+  save();renderSlots();toast(`已還原「${label}」的預設時段`);
 }
 
 let editSId=null;
 function openSModal(){
-  document.getElementById('s-modal-title').textContent='新增時段';
+  document.getElementById('s-modal-title').textContent=slotGroupTab==='fri'?'新增時段（週五）':'新增時段（平日）';
   document.getElementById('s-start').value='08:00';
   document.getElementById('s-end').value='08:30';
   document.getElementById('s-type').value='正課';
@@ -1543,20 +1609,23 @@ function saveSlot(){
   const end=document.getElementById('s-end').value;
   if(!start||!end){toast('請填入時間');return;}
   if(calcHrs(start,end)<=0){toast('結束時間必須晚於開始時間');return;}
-  const obj={id:sidSeq++,start,end,type:document.getElementById('s-type').value,note:document.getElementById('s-note').value.trim()};
+  const obj={id:sidSeq++,start,end,type:document.getElementById('s-type').value,note:document.getElementById('s-note').value.trim(),group:slotGroupTab};
   // Insert in time order
   DB.slots.push(obj);
   DB.slots.sort((a,b)=>timeToMin(a.start)-timeToMin(b.start));
   save();closeOv('ov-s');renderSlots();toast(`已新增 ${start}～${end}`);
 }
 
-// Drag-and-drop reorder
+// Drag-and-drop reorder（只在目前分頁（平日／週五）的子集合內重新排序）
 function dragStart(i){dragSrc=i;}
 function dragOver(e,i){e.preventDefault();document.querySelectorAll('#s-body tr').forEach((r,ri)=>r.classList.toggle('drag-over',ri===i));}
 function dragDrop(i){
   if(dragSrc===null||dragSrc===i) return;
-  const moved=DB.slots.splice(dragSrc,1)[0];
-  DB.slots.splice(i,0,moved);
+  const groupSlots=DB.slots.filter(s=>slotGroupTab==='fri'?s.group==='fri':s.group!=='fri');
+  const others=DB.slots.filter(s=>slotGroupTab==='fri'?s.group!=='fri':s.group==='fri');
+  const moved=groupSlots.splice(dragSrc,1)[0];
+  groupSlots.splice(i,0,moved);
+  DB.slots=slotGroupTab==='fri'?[...others,...groupSlots]:[...groupSlots,...others];
   dragSrc=null;save();renderSlots();
 }
 function dragEnd(){document.querySelectorAll('#s-body tr').forEach(r=>r.classList.remove('drag-over'));dragSrc=null;}
@@ -1576,8 +1645,12 @@ function renderCamps(){
         <div class="wsr" style="align-items:flex-start">
           <div class="wsl">分組 ${gi+1}</div>
           <div style="flex:1">
-            <input type="text" value="${g.name}" placeholder="營隊名稱" style="width:100%;margin-bottom:6px"
-              oninput="DB.camps[${wi}].groups[${gi}].name=this.value">
+            <div style="display:flex;gap:6px;margin-bottom:6px">
+              <input type="text" value="${g.name}" placeholder="營隊總稱（個人班表顯示，例：美學手作營）" style="flex:1"
+                oninput="DB.camps[${wi}].groups[${gi}].name=this.value">
+              <input type="text" value="${g.abbrev||''}" placeholder="簡稱（總覽顯示，例：美）" maxlength="4" style="width:110px"
+                oninput="DB.camps[${wi}].groups[${gi}].abbrev=this.value">
+            </div>
             <div style="display:flex;flex-wrap:wrap;gap:5px">
               ${DB.teachers.map(t=>{
                 const checked=(g.teacherIds||[]).includes(t.id);
@@ -1611,7 +1684,7 @@ function showCampTab(i,el){
   el.classList.add('active');
   document.getElementById('cp'+i).classList.add('active');
 }
-function addCamp(wi){DB.camps[wi].groups.push({name:'新營隊',teacherIds:[]});save();renderSlots();setTimeout(()=>{const tabs=document.querySelectorAll('.ctab');showCampTab(wi,tabs[wi]);},0);toast('已新增分組');}
+function addCamp(wi){DB.camps[wi].groups.push({name:'新營隊',abbrev:'新',teacherIds:[]});save();renderSlots();setTimeout(()=>{const tabs=document.querySelectorAll('.ctab');showCampTab(wi,tabs[wi]);},0);toast('已新增分組');}
 function rmCamp(wi,gi){
   if(DB.camps[wi].groups.length<=1){toast('至少保留一個分組');return;}
   DB.camps[wi].groups.splice(gi,1);save();renderSlots();setTimeout(()=>{const tabs=document.querySelectorAll('.ctab');showCampTab(wi,tabs[wi]);},0);toast('已移除分組');
@@ -1753,10 +1826,46 @@ function renderScheduleInit(){
   wsel.innerHTML=DB.camps.map((c,i)=>`<option value="${i}">${c.label}</option>`).join('');
   if(prevWeek && [...wsel.options].some(o=>o.value===prevWeek)) wsel.value=prevWeek;
 
-  document.getElementById('sc-daytabs').innerHTML=DAYS.map((d,i)=>
+  // 星期分頁只保留週一～週四（週五改用下方「週五日期」下拉單獨切換）
+  document.getElementById('sc-daytabs').innerHTML=DAYS.slice(0,4).map((d,i)=>
     `<div class="ctab${i===scDay?' active':''}" onclick="setScDay(${i},this)">${d}</div>`
   ).join('');
 
+  const friSel=document.getElementById('sc-fridate');
+  const prevFri=friSel.value;
+  friSel.innerHTML=DB.camps.map((c,i)=>`<option value="${i}">${getDayDate(i,4)||c.label}（週五）</option>`).join('');
+  if(prevFri && [...friSel.options].some(o=>o.value===prevFri)) friSel.value=prevFri;
+
+  applyScModeUI();
+  updateFillControls();
+  renderSchedule();
+}
+let scMode='weekday';
+function applyScModeUI(){
+  const wdBtn=document.getElementById('sc-mode-wd'), friBtn=document.getElementById('sc-mode-fri');
+  wdBtn.className='btn btn-sm'+(scMode==='weekday'?' btn-primary':'');
+  friBtn.className='btn btn-sm'+(scMode==='friday'?' btn-primary':'');
+  document.getElementById('sc-week-wrap').style.display=scMode==='weekday'?'':'none';
+  document.getElementById('sc-daytabs-wrap').style.display=scMode==='weekday'?'':'none';
+  document.getElementById('sc-fridate-wrap').style.display=scMode==='friday'?'':'none';
+}
+function setScMode(mode){
+  scMode=mode;
+  if(mode==='friday'){
+    scDay=4;
+    const friSel=document.getElementById('sc-fridate');
+    document.getElementById('sc-week').value=friSel.value||document.getElementById('sc-week').value;
+  }else{
+    if(scDay===4) scDay=0;
+    document.querySelectorAll('#sc-daytabs .ctab').forEach((t,i)=>t.classList.toggle('active',i===scDay));
+  }
+  applyScModeUI();
+  updateFillControls();
+  renderSchedule();
+}
+function setScFriDate(weekVal){
+  document.getElementById('sc-week').value=weekVal;
+  scDay=4;
   updateFillControls();
   renderSchedule();
 }
@@ -1846,9 +1955,10 @@ function renderSchedule(){
   const activeTeachers=DB.teachers.filter(t=>t.active);
   const conflicts=scConflictMap(week,day);
 
+  const daySlots=slotsForDay(day);
   document.getElementById('sc-thead').innerHTML=
     `<th style="min-width:90px">教室 ＼ 時段</th>`+
-    DB.slots.map(s=>`<th style="text-align:center;white-space:nowrap">${s.start}<br>${s.end}</th>`).join('')+
+    daySlots.map(s=>`<th style="text-align:center;white-space:nowrap">${s.start}<br>${s.end}</th>`).join('')+
     `<th style="min-width:140px">備註</th>`;
 
   const conflictCount=Object.values(conflicts).filter(v=>v>1).length;
@@ -1864,7 +1974,7 @@ function renderSchedule(){
     return true;
   });
   document.getElementById('sc-body').innerHTML=visibleRooms.map(r=>{
-    const cells=DB.slots.map(s=>{
+    const cells=daySlots.map(s=>{
       const applicable=isApplicableCell(r,s,day,week);
       if(!applicable){
         return `<td style="padding:4px;background:var(--s1);text-align:center;color:var(--tm);font-size:11px">不適用</td>`;
@@ -1975,7 +2085,7 @@ function fillTeacherDay(teacherId,week,day,fallbackRoomId){
   const t=DB.teachers.find(x=>x.id===teacherId);
   const gs=t?getDayShift(t,day,week):null;
   if(!t||!gs) return {ok:false};
-  const targetSlots=DB.slots.filter(s=>slotInRange(s,gs.start,gs.end));
+  const targetSlots=slotsForDay(day).filter(s=>slotInRange(s,gs.start,gs.end));
   let filled=0, skippedBlocked=0, skippedNoRoom=0, skippedFull=0;
   targetSlots.forEach(s=>{
     if(t.blocked && t.blocked.includes(s.id)){skippedBlocked++;return;}
@@ -2075,7 +2185,7 @@ function dateForDay(camp,day){
   return (d.getMonth()+1)+'/'+d.getDate();
 }
 
-function campAbbrev(name){ return name ? name.charAt(0) : ''; }
+function campAbbrev(g){ if(!g) return ''; return g.abbrev ? g.abbrev : (g.name?g.name.charAt(0):''); }
 // 該教師在某週某天，依實際排班（DB.schedule）算出的最早上班～最晚下班時間區間
 function computeTeacherDayRange(week,day,teacherId){
   const assigns=DB.schedule.filter(x=>x.week===week&&x.day===day&&x.teacherId===teacherId);
@@ -2127,31 +2237,45 @@ function renderTeacherView(){
     sc(t.min+'～'+t.max+'h','目標時數範圍')+
     `<div class="scard"><div class="num" style="font-size:15px;padding-top:6px">${statusBadge}</div><div class="lbl">狀態</div></div>`;
 
-  // Table-grid: rows = 星期, columns = 時段
+  // Table-grid: rows = 星期, columns = 時段（平日、週五分開兩張表）
   const myCampGroups=(DB.camps[week]&&DB.camps[week].groups||[]).filter(g=>(g.teacherIds||[]).includes(tid));
-  const campLabel=myCampGroups.map(g=>g.name).join('、');
-  const thead=`<th style="min-width:70px">星期 ＼ 時段</th>`+
-    DB.slots.map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
-  const rows=DAYS.map((dLabel,day)=>{
-    const cells=DB.slots.map(s=>{
-      if(day<4 && s.start==='14:00'&&s.end==='16:00'&&campLabel){
-        return `<td style="text-align:center;background:#DBEAFE;color:#1E40AF;font-weight:600;font-size:12px">📚 ${campLabel}</td>`;
-      }
-      const r=dayMap[day][s.id];
-      if(!r) return `<td style="text-align:center;color:var(--tm);font-size:11px">－</td>`;
-      return `<td style="text-align:center;background:${t.color}1c;color:${t.color};font-weight:600;font-size:12px">${r.name}</td>`;
-    }).join('');
-    const dateStr=getDayDate(week,day);
-    let fridayRange='';
-    if(day===4){
-      const range=computeTeacherDayRange(week,4,tid);
-      if(range) fridayRange=`<br><span style="font-weight:400;color:#B45309;font-size:10px">🕐 ${range.start}–${range.end}</span>`;
+  const campLabel=myCampGroups.map(g=>g.name).join('、'); // 個人班表顯示營隊「總稱」
+
+  function roomCell(day,s){
+    if(day<4 && s.start==='14:00'&&s.end==='16:00'&&campLabel){
+      return `<td style="text-align:center;background:#DBEAFE;color:#1E40AF;font-weight:600;font-size:12px">📚 ${escapeHtml(campLabel)}</td>`;
     }
-    return `<tr><td style="font-weight:600">${dLabel}${dateStr?`<br><span style="font-weight:400;color:var(--tm);font-size:10px">${dateStr}</span>`:''}${fridayRange}</td>${cells}</tr>`;
+    const r=dayMap[day][s.id];
+    if(!r) return `<td style="text-align:center;color:var(--tm);font-size:11px">－</td>`;
+    const extTag=r.ext?`<div style="font-weight:400;font-size:9px">☎${escapeHtml(r.ext)}</div>`:'';
+    return `<td style="text-align:center;background:${t.color}1c;color:${t.color};font-weight:600;font-size:12px">${r.name}${extTag}</td>`;
+  }
+
+  // 平日（週一～週四）
+  const wdSlots=slotsForDay(0);
+  const wdThead=`<th style="min-width:70px">星期 ＼ 時段</th>`+
+    wdSlots.map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
+  const wdRows=DAYS.slice(0,4).map((dLabel,day)=>{
+    const cells=wdSlots.map(s=>roomCell(day,s)).join('');
+    const dateStr=getDayDate(week,day);
+    return `<tr><td style="font-weight:600">${dLabel}${dateStr?`<br><span style="font-weight:400;color:var(--tm);font-size:10px">${dateStr}</span>`:''}</td>${cells}</tr>`;
   }).join('');
 
+  // 週五（獨立一張表，標題直接用日期）
+  const friSlots=slotsForDay(4);
+  const friDateStr=getDayDate(week,4);
+  const friThead=`<th style="min-width:70px">日期 ＼ 時段</th>`+
+    friSlots.map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
+  const friRange=computeTeacherDayRange(week,4,tid);
+  const friRangeTag=friRange?`<br><span style="font-weight:400;color:#B45309;font-size:10px">🕐 ${friRange.start}–${friRange.end}</span>`:'';
+  const friCells=friSlots.map(s=>roomCell(4,s)).join('');
+  const friRows=`<tr><td style="font-weight:600">週五${friDateStr?`<br><span style="font-weight:400;color:var(--tm);font-size:10px">${friDateStr}</span>`:''}${friRangeTag}</td>${friCells}</tr>`;
+
   document.getElementById('tv-body').innerHTML=
-    `<div style="overflow-x:auto"><table class="dt" style="min-width:900px"><thead><tr>${thead}</tr></thead><tbody>${rows}</tbody></table></div>`
+    `<div style="font-weight:600;margin:4px 0 6px">平日班表（週一～週四）</div>`
+    + `<div style="overflow-x:auto"><table class="dt" style="min-width:700px"><thead><tr>${wdThead}</tr></thead><tbody>${wdRows}</tbody></table></div>`
+    + `<div style="font-weight:600;margin:16px 0 6px">週五班表${friDateStr?'（'+friDateStr+'）':''}</div>`
+    + `<div style="overflow-x:auto"><table class="dt" style="min-width:700px"><thead><tr>${friThead}</tr></thead><tbody>${friRows}</tbody></table></div>`
     + renderPersonalCampBlock(week, tid)
     + renderPersonalNotesBlock(week, dayMap);
 }
@@ -2216,10 +2340,33 @@ function exportTeacherFilename(ext){
   const weekLabel=(DB.camps[week]?DB.camps[week].label:'').replace(/\s+/g,'');
   return `${t?t.name:'教師'}班表_${weekLabel}.${ext}`;
 }
-// 共用的高畫質、完整寬度截圖（避免 overflow-x:auto 造成右側被裁切，並提高解析度）
+// 共用的高畫質、完整寬度截圖（避免 overflow-x:auto／overflow-y 造成內容被裁切，並提高解析度）
+// 做法：擷取前先暫時解除容器內所有「有捲軸」的子元素限制（讓內容完整展開），擷取完再還原原本樣式
 function captureFullElement(el){
+  const scrollers=[el, ...el.querySelectorAll('*')].filter(node=>{
+    const cs=window.getComputedStyle(node);
+    return /(auto|scroll)/.test(cs.overflow+cs.overflowX+cs.overflowY);
+  });
+  const saved=scrollers.map(node=>({
+    node,
+    overflow:node.style.overflow, overflowX:node.style.overflowX, overflowY:node.style.overflowY,
+    width:node.style.width, maxHeight:node.style.maxHeight, height:node.style.height
+  }));
+  scrollers.forEach(node=>{
+    node.style.overflow='visible';
+    node.style.overflowX='visible';
+    node.style.overflowY='visible';
+    node.style.maxHeight='none';
+    if(node!==el) node.style.width=Math.max(node.scrollWidth,node.offsetWidth)+'px';
+  });
+  // 強制 reflow 後再量測，確保展開後的完整尺寸
+  void el.offsetHeight;
   const w=Math.max(el.scrollWidth, el.offsetWidth);
   const h=Math.max(el.scrollHeight, el.offsetHeight);
+  const restore=()=>saved.forEach(s=>{
+    s.node.style.overflow=s.overflow; s.node.style.overflowX=s.overflowX; s.node.style.overflowY=s.overflowY;
+    s.node.style.width=s.width; s.node.style.maxHeight=s.maxHeight; s.node.style.height=s.height;
+  });
   return html2canvas(el,{
     backgroundColor:'#ffffff',
     scale:3,
@@ -2227,7 +2374,7 @@ function captureFullElement(el){
     height:h,
     windowWidth:w,
     windowHeight:h
-  });
+  }).then(canvas=>{ restore(); return canvas; }).catch(err=>{ restore(); throw err; });
 }
 function exportTeacherPNG(){
   const el=document.getElementById('tv-export-area');
@@ -2306,9 +2453,11 @@ function renderOverviewInit(){
   renderOverviewGrid();
 }
 function renderOvDayTabs(){
+  // 星期分頁只保留週一～週四；週五固定顯示在下方獨立表格，不需切換
   const wsel=document.getElementById('ov-week');
   const week=wsel.options.length?parseInt(wsel.value):0;
-  document.getElementById('ov-daytabs').innerHTML=DAYS.map((d,i)=>{
+  if(ovDay===4) ovDay=0;
+  document.getElementById('ov-daytabs').innerHTML=DAYS.slice(0,4).map((d,i)=>{
     const dateStr=getDayDate(week,i);
     return `<div class="ctab${i===ovDay?' active':''}" onclick="setOvDay(${i},this)">${d}${dateStr?`<br><span style="font-size:10px;font-weight:400">${dateStr}</span>`:''}</div>`;
   }).join('');
@@ -2356,16 +2505,46 @@ function renderOverviewStats(){
     `<table class="dt"><thead><tr><th>教師</th><th>已排時數 / 上限</th><th>目標範圍</th><th>落差</th><th>狀態</th></tr></thead>
      <tbody>${rows||'<tr><td colspan="5" style="color:var(--tm)">尚無啟用中的教師</td></tr>'}</tbody></table>`;
 }
-// 當日教師時段總覽：全部教師 × 當天時段（唯讀）
+// 當日/當週教師時段總覽：全部教師 × 時段（唯讀）；平日與週五分開兩張表
+function ovRowHTML(t,week,day,conflicts,weekCamps){
+  const daySlots=slotsForDay(day);
+  const gs=getDayShift(t,day,week);
+  const myCamp = day<4 ? weekCamps.find(g=>(g.teacherIds||[]).includes(t.id)) : null;
+  const cells=daySlots.map(s=>{
+    const found=DB.schedule.find(x=>x.week===week&&x.day===day&&x.teacherId===t.id&&x.slotId===s.id);
+    const isBlocked=t.blocked&&t.blocked.includes(s.id);
+    const key=s.id+'_'+t.id;
+    const isConflict=found&&conflicts[key]>1;
+    const isCampSlot = myCamp && s.start==='14:00' && s.end==='16:00';
+    if(found){
+      const r=DB.rooms.find(x=>x.id===found.roomId);
+      const bg=isConflict?'var(--err-bg)':`${t.color}1c`;
+      const campTag=isCampSlot?`（${campAbbrev(myCamp)}）`:'';
+      const extTag=(r&&r.ext)?`<div style="font-weight:400;font-size:9px">☎${escapeHtml(r.ext)}</div>`:'';
+      return `<td style="text-align:center;background:${bg};color:${isConflict?'var(--err-t)':t.color};font-weight:600;font-size:11px">${r?r.name:'?'}${campTag}${extTag}</td>`;
+    }
+    if(isCampSlot){
+      return `<td style="text-align:center;background:#DBEAFE;color:#1E40AF;font-weight:600;font-size:11px">（${campAbbrev(myCamp)}）</td>`;
+    }
+    if(isBlocked) return `<td style="text-align:center;background:var(--warn-bg);color:var(--tm);font-size:10px">封鎖</td>`;
+    const outOfShift = gs && !slotInRange(s,gs.start,gs.end);
+    if(outOfShift) return `<td style="text-align:center;background:var(--s1);color:var(--tm);font-size:10px">未上班</td>`;
+    return `<td style="text-align:center;color:var(--tm);font-size:11px">－</td>`;
+  }).join('');
+  return `<tr><td style="font-weight:500;white-space:nowrap"><span class="dot" style="background:${t.color}"></span> ${t.name}</td>${cells}</tr>`;
+}
 function renderOverviewGrid(){
   const wsel=document.getElementById('ov-week');
   if(!wsel.options.length) return;
   const week=parseInt(wsel.value);
-  const day=ovDay;
+  const day=ovDay; // 0~3，平日表格用
   const activeTeachers=DB.teachers.filter(t=>t.active);
+  const weekLabel=DB.camps[week]?DB.camps[week].label:'';
+  const weekCamps=(DB.camps[week]&&DB.camps[week].groups)||[];
+
+  // ── 平日表格 ──
   const conflicts=scConflictMap(week,day);
   const conflictCount=Object.values(conflicts).filter(v=>v>1).length;
-  const weekLabel=DB.camps[week]?DB.camps[week].label:'';
   const dateStr=getDayDate(week,day);
 
   document.getElementById('ov-export-title').innerHTML=
@@ -2376,38 +2555,24 @@ function renderOverviewGrid(){
 
   document.getElementById('ov-notes').innerHTML=renderOverviewNotesBlock(week, day);
   document.getElementById('ov-camp').innerHTML=renderOverviewCampBlock(week);
-  document.getElementById('ov-friday').innerHTML = day===4 ? renderOverviewFridayRangeBlock(week) : '';
 
   document.getElementById('ov-thead').innerHTML=
     `<th style="min-width:90px">教師 ＼ 時段</th>`+
-    DB.slots.map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
+    slotsForDay(day).map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
+  document.getElementById('ov-body').innerHTML=activeTeachers.map(t=>ovRowHTML(t,week,day,conflicts,weekCamps)).join('');
 
-  const weekCamps=(DB.camps[week]&&DB.camps[week].groups)||[];
-  document.getElementById('ov-body').innerHTML=activeTeachers.map(t=>{
-    const gs=getDayShift(t,day,week);
-    const myCamp = day<4 ? weekCamps.find(g=>(g.teacherIds||[]).includes(t.id)) : null;
-    const cells=DB.slots.map(s=>{
-      const found=DB.schedule.find(x=>x.week===week&&x.day===day&&x.teacherId===t.id&&x.slotId===s.id);
-      const isBlocked=t.blocked&&t.blocked.includes(s.id);
-      const key=s.id+'_'+t.id;
-      const isConflict=found&&conflicts[key]>1;
-      const isCampSlot = myCamp && s.start==='14:00' && s.end==='16:00';
-      if(found){
-        const r=DB.rooms.find(x=>x.id===found.roomId);
-        const bg=isConflict?'var(--err-bg)':`${t.color}1c`;
-        const campTag=isCampSlot?`（${campAbbrev(myCamp.name)}）`:'';
-        return `<td style="text-align:center;background:${bg};color:${isConflict?'var(--err-t)':t.color};font-weight:600;font-size:11px">${r?r.name:'?'}${campTag}</td>`;
-      }
-      if(isCampSlot){
-        return `<td style="text-align:center;background:#DBEAFE;color:#1E40AF;font-weight:600;font-size:11px">（${campAbbrev(myCamp.name)}）</td>`;
-      }
-      if(isBlocked) return `<td style="text-align:center;background:var(--warn-bg);color:var(--tm);font-size:10px">封鎖</td>`;
-      const outOfShift = gs && !slotInRange(s,gs.start,gs.end);
-      if(outOfShift) return `<td style="text-align:center;background:var(--s1);color:var(--tm);font-size:10px">未上班</td>`;
-      return `<td style="text-align:center;color:var(--tm);font-size:11px">－</td>`;
-    }).join('');
-    return `<tr><td style="font-weight:500;white-space:nowrap"><span class="dot" style="background:${t.color}"></span> ${t.name}</td>${cells}</tr>`;
-  }).join('');
+  // ── 週五表格（固定顯示，不受星期分頁影響，標題直接用日期）──
+  const friDateStr=getDayDate(week,4);
+  const friConflicts=scConflictMap(week,4);
+  const friConflictCount=Object.values(friConflicts).filter(v=>v>1).length;
+  document.getElementById('ov-friday-title').innerHTML=`週五班表${friDateStr?'（'+friDateStr+'）':''}`;
+  document.getElementById('ov-friday').innerHTML=
+    (friConflictCount?`<div class="alert alert-warn" style="margin-bottom:8px">⚠ 週五偵測到 ${friConflictCount} 處教師衝突，請至「排班編輯」頁面確認</div>`:'')
+    + renderOverviewFridayRangeBlock(week);
+  document.getElementById('ov-thead-fri').innerHTML=
+    `<th style="min-width:90px">教師 ＼ 時段</th>`+
+    slotsForDay(4).map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
+  document.getElementById('ov-body-fri').innerHTML=activeTeachers.map(t=>ovRowHTML(t,week,4,friConflicts,weekCamps)).join('');
 }
 // 週五工作區間總覽：依實際排班算出每位教師當天最早～最晚時段
 function renderOverviewFridayRangeBlock(week){
