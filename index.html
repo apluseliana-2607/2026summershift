@@ -908,6 +908,14 @@ if(!DB.slots.some(s=>s.group==='fri')){
   DB.slots.push(...JSON.parse(JSON.stringify(DEF_SLOTS_FRI)));
   migrated=true;
 }
+// 清除「殘留的舊週五排班資料」：週五時段改版後 ID 已不同，舊資料在畫面上看不到，
+// 但若留著會被時數統計重複加總，這裡一併清掉（週一～週四資料不受影響）
+{
+  const friIds=new Set(DB.slots.filter(s=>s.group==='fri').map(s=>s.id));
+  const beforeLen=DB.schedule.length;
+  DB.schedule=DB.schedule.filter(x=> x.day===4 ? friIds.has(x.slotId) : !friIds.has(x.slotId));
+  if(DB.schedule.length!==beforeLen) migrated=true;
+}
 if(migrated) save();
 
 const OUTDOOR_SHIFT={start:'08:30',end:'16:30'};
