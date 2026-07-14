@@ -2576,26 +2576,14 @@ function renderOverviewGrid(){
   document.getElementById('ov-friday-title').innerHTML=`週五班表${friDateStr?'（'+friDateStr+'）':''}`;
   document.getElementById('ov-friday').innerHTML=
     (friConflictCount?`<div class="alert alert-warn" style="margin-bottom:8px">⚠ 週五偵測到 ${friConflictCount} 處教師衝突，請至「排班編輯」頁面確認</div>`:'')
-    + renderOverviewFridayRangeBlock(week);
+    + renderOverviewNotesBlock(week, 4);
   document.getElementById('ov-thead-fri').innerHTML=
     `<th style="min-width:90px">教師 ＼ 時段</th>`+
     slotsForDay(4).map(s=>`<th style="text-align:center;white-space:nowrap;font-size:10px">${s.start}<br>${s.end}</th>`).join('');
   document.getElementById('ov-body-fri').innerHTML=activeTeachers.map(t=>ovRowHTML(t,week,4,friConflicts,weekCamps)).join('');
 }
 // 週五工作區間總覽：依實際排班算出每位教師當天最早～最晚時段
-function renderOverviewFridayRangeBlock(week){
-  const activeTeachers=DB.teachers.filter(t=>t.active);
-  const items=activeTeachers.map(t=>{
-    const range=computeTeacherDayRange(week,4,t.id);
-    if(!range) return null;
-    return `<div style="margin-top:4px"><b>${escapeHtml(t.name)}</b>　${range.start}–${range.end}</div>`;
-  }).filter(Boolean);
-  if(!items.length) return '';
-  return `<div style="margin-top:8px;padding:10px 12px;background:#FEF3C7;border:1px solid #FDE68A;border-radius:8px;font-size:13px;color:#92400E">
-    <b>🕐 週五教師實際上班區間（依排班結果自動計算）</b>
-    <div style="display:flex;flex-wrap:wrap;gap:0 16px">${items.join('')}</div>
-  </div>`;
-}
+
 
 // ══════════════════════════════════════════════
 // UTILS
