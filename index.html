@@ -1767,6 +1767,8 @@ function roomEligible(t,r,s,day,week){
   }
   if(inCareWindow(s)) return isPlazaName(r.name);
   if(isPlazaName(r.name)) return false; // 09:00-16:30 core hours use grade classrooms only
+  // 週五核心時段：留校托育的老師（非戶外教學帶隊）可彈性排入任何教室，因應併班安排，不限本人固定教室
+  if(day===4) return true;
   return !t.homeRoom || t.homeRoom===r.name;
 }
 // Which plaza a teacher's homeroom floor maps to, for care-window auto-fill
