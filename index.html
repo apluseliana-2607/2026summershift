@@ -1763,7 +1763,8 @@ function roomEligible(t,r,s,day,week){
   if(day!==undefined && week!==undefined && is0803_1B_Open(r,s,day,week)) return true; // 8/3 1B 特例：任何教師皆可選
   if(isOpenEveningWindow(s)){
     if(isPlazaName(r.name)) return true; // 16:30-17:30 廣場對所有教師開放
-    return !t.homeRoom || t.homeRoom===r.name; // 16:30-17:30 教室仍依原本歸屬教師規則
+    if(day===4) return true; // 週五 16:30-17:30：一般教室也對所有留校托育老師開放，因應併班安排
+    return !t.homeRoom || t.homeRoom===r.name; // 其他天，教室仍依原本歸屬教師規則
   }
   if(inCareWindow(s)) return isPlazaName(r.name);
   if(isPlazaName(r.name)) return false; // 09:00-16:30 core hours use grade classrooms only
